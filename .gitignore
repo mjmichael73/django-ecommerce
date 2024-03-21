@@ -1,0 +1,12 @@
+.idea
+venv
+be/ecommerce/__pycache__/
+be/ecommerce/*/__pycache__/
+be/ecommerce/*/models/__pycache__/
+be/ecommerce/*/migrations/__pycache__/
+be/ecommerce/*/views/__pycache__/
+be/ecommerce/*/forms/__pycache__/
+be/ecommerce/*/templatetags/__pycache__/
+be/ecommerce/*/helpers/__pycache__/
+*/__pycache__
+db.sqlite3
