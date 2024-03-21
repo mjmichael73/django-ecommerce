@@ -8,5 +8,6 @@ be/ecommerce/*/views/__pycache__/
 be/ecommerce/*/forms/__pycache__/
 be/ecommerce/*/templatetags/__pycache__/
 be/ecommerce/*/helpers/__pycache__/
+be/ecommerce/products
 */__pycache__
 db.sqlite3
