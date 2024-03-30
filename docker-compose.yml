@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  ecommerce-rabbitmq:
+    image: rabbitmq:3.13.0-management-alpine
+    container_name: ecommerce-rabbitmq
+    restart: always
+    tty: true
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - ecommerce-net
+
+networks:
+  ecommerce-net:
+    driver: bridge
