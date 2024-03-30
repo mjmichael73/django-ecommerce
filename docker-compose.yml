@@ -7,8 +7,10 @@ services:
     restart: always
     tty: true
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5672:5672" # amqp
+      - "15672:15672" # http
+      - "15692:15692" # prometheus
+      - "25672:25672" # clustering
     networks:
       - ecommerce-net
 
