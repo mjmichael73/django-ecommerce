@@ -7,3 +7,4 @@
 ### Running a celery worker:
 
     celery -A ecommerce worker -l info
+    celery -A ecommerce worker -l info -P solo (on Windows)

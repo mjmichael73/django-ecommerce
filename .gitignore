@@ -6,6 +6,7 @@ be/ecommerce/*/models/__pycache__/
 be/ecommerce/*/migrations/__pycache__/
 be/ecommerce/*/views/__pycache__/
 be/ecommerce/*/forms/__pycache__/
+be/ecommerce/*/tasks/__pycache__/
 be/ecommerce/*/utils/__pycache__/
 be/ecommerce/*/templatetags/__pycache__/
 be/ecommerce/*/helpers/__pycache__/
