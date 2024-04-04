@@ -14,7 +14,7 @@ def payment_process(request):
         success_url = request.build_absolute_uri(
             reverse('payment:completed')
         )
-        cancel_url = request.build_absolute_url(
+        cancel_url = request.build_absolute_uri(
             reverse('payment:canceled')
         )
         session_data = {
@@ -31,7 +31,7 @@ def payment_process(request):
                         'unit_amount': int(item.price * Decimal('100')),
                         'currency': 'usd',
                         'product_data': {
-                            'name': item.product_name,
+                            'name': item.product.name,
                         }
                     },
                     'quantity': item.quantity,
