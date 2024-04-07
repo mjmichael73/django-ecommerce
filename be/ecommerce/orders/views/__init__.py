@@ -1,1 +1,2 @@
 from .order_create_view import order_create
+from .admin_order_detail_view import admin_order_detail
