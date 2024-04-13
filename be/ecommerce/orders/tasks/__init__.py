@@ -1,1 +1,2 @@
 from .order_created_task import order_created
+from .payment_completed_task import payment_completed
