@@ -1,13 +1,14 @@
 # Django ecommerce — Docker-first development (run from repo root)
-.PHONY: help env build up up-d down logs logs-web ps restart-web restart-worker \
-	migrate makemigrations seed createsuperuser shell collectstatic test manage sh \
-	flower down-volumes clean
+.PHONY: help env build up up-d up-proxy up-d-proxy down logs logs-web ps restart-web \
+	restart-worker migrate makemigrations seed createsuperuser shell collectstatic \
+	test manage sh check-deploy flower down-volumes clean
 
 COMPOSE ?= docker compose
 WEB := web
 
 help: ## Show targets (all commands assume Docker Compose is running unless noted)
 	@echo "Docker development — http://localhost:8000 · RabbitMQ UI http://localhost:15672"
+	@echo "Optional nginx in front — http://localhost:8080 — use make up-d-proxy"
 	@echo ""
 	@echo "First time:   make env && make build && make up-d"
 	@echo "Then:         make migrate && make seed   (demo data + superadmin/password)"
@@ -28,6 +29,12 @@ up: ## Start full stack in the foreground (logs attached)
 
 up-d: ## Start full stack detached (background)
 	$(COMPOSE) up -d
+
+up-proxy: ## Start stack with nginx reverse-proxy (foreground) — app on :8080 and :8000
+	$(COMPOSE) --profile reverse-proxy up
+
+up-d-proxy: ## Same with reverse-proxy detached
+	$(COMPOSE) --profile reverse-proxy up -d
 
 down: ## Stop stack (keeps volumes / database data)
 	$(COMPOSE) down
@@ -76,6 +83,9 @@ test: ## Run Django tests inside the web container
 
 manage: ## Run any manage.py command, e.g. make manage ARGS='showmigrations'
 	$(COMPOSE) exec $(WEB) python manage.py $(ARGS)
+
+check-deploy: ## Django deployment checks (use DEBUG=False and real ALLOWED_HOSTS in .env)
+	$(COMPOSE) exec $(WEB) python manage.py check --deploy
 
 flower: ## Celery Flower at http://localhost:5555
 	$(COMPOSE) run --rm -p 5555:5555 celery-worker \

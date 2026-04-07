@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -34,10 +36,49 @@ if _allowed.strip():
 else:
     ALLOWED_HOSTS = []
 
+if '*' in ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        'ALLOWED_HOSTS may not contain "*". Set explicit hostnames or IPs.'
+    )
+
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        'ALLOWED_HOSTS must be set when DEBUG is False — list every hostname '
+        '(or IP) the site is served on.'
+    )
+
 # Trusted origins for CSRF (e.g. https://shop.example.com behind a TLS-terminating proxy)
 _csrf = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
 if _csrf.strip():
     CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
+else:
+    CSRF_TRUSTED_ORIGINS = []
+
+
+def _env_bool(key: str, default: str) -> bool:
+    return os.environ.get(key, default).lower() in ('1', 'true', 'yes')
+
+
+# Behind nginx / Traefik / LB that sets X-Forwarded-* (see docker/nginx/default.conf)
+if _env_bool('DJANGO_BEHIND_PROXY', 'no'):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = _env_bool('SESSION_COOKIE_SECURE', 'true')
+    CSRF_COOKIE_SECURE = _env_bool('CSRF_COOKIE_SECURE', 'true')
+    # Prefer HTTP→HTTPS redirects at the proxy. Enable here only if Django is the TLS edge.
+    SECURE_SSL_REDIRECT = _env_bool('SECURE_SSL_REDIRECT', 'false')
+    hsts_raw = os.environ.get('SECURE_HSTS_SECONDS', '0').strip()
+    try:
+        SECURE_HSTS_SECONDS = int(hsts_raw)
+    except ValueError:
+        SECURE_HSTS_SECONDS = 0
+    if SECURE_HSTS_SECONDS > 0:
+        SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool(
+            'SECURE_HSTS_INCLUDE_SUBDOMAINS', 'false'
+        )
+        SECURE_HSTS_PRELOAD = _env_bool('SECURE_HSTS_PRELOAD', 'false')
 
 # Application definition
 

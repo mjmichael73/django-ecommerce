@@ -19,7 +19,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 | Queue | Celery 5 + RabbitMQ; Redis for Celery results (Compose)                         |
 | Pay   | [Stripe](https://stripe.com/)                                                 |
 | PDF   | [WeasyPrint](https://weasyprint.org/)                                         |
-| Ops   | Optional [Flower](https://flower.readthedocs.io/) for Celery monitoring       |
+| Ops   | Optional nginx reverse-proxy profile; [Flower](https://flower.readthedocs.io/) for Celery |
 
 ## Prerequisites
 
@@ -31,7 +31,8 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 - `be/requirements.txt` — Python dependencies
 - `be/ecommerce/` — Django project (`manage.py`, apps: `shop`, `cart`, `orders`, `payment`, `coupons`)
 - `Dockerfile` — app image (WeasyPrint system libs + Python)
-- `docker-compose.yml` — PostgreSQL, Redis, RabbitMQ, Gunicorn web, Celery worker
+- `docker-compose.yml` — PostgreSQL, Redis, RabbitMQ, Gunicorn web, Celery worker, optional **nginx** (`reverse-proxy` profile)
+- `docker/nginx/default.conf` — reverse-proxy headers for Gunicorn (`X-Forwarded-*`)
 - `docker/entrypoint.sh` — wait for Postgres, `migrate`, `collectstatic`
 - `.env.example` — template for `.env` (never commit real secrets)
 - `scripts/bootstrap_env.py` — used by `make env` to create `.env` and a strong `SECRET_KEY`
@@ -51,6 +52,36 @@ docker compose up
 
 The `web` service runs Gunicorn; the first start runs migrations and `collectstatic`. Uploaded media is stored in the `media_data` volume. Set **`STRIPE_*`** in `.env` before taking real payments.
 
+### Reverse proxy (nginx in front of Gunicorn)
+
+For the same layout you would use in production (clients → TLS/reverse proxy → app), start Compose with the **`reverse-proxy`** profile. **nginx** listens on **host port 8080** and forwards to Gunicorn on the internal network; Gunicorn stays on **8000** for direct access during development.
+
+```bash
+make up-d-proxy
+# Shop via proxy: http://localhost:8080/   — still available directly: http://localhost:8000/
+```
+
+Set **`DJANGO_BEHIND_PROXY=1`** in `.env` when traffic reaches Django through this proxy so `request.is_secure()`, redirects, and CSRF use **`X-Forwarded-Proto`** / **`X-Forwarded-Host`** correctly. For a TLS-terminated proxy in production, set **`CSRF_TRUSTED_ORIGINS`** to your **`https://…`** origins.
+
+For real HTTPS, configure nginx with `listen 443 ssl` and publish **80/443** only on nginx; keep **Gunicorn on port 8000** off the public Internet. Set **`DJANGO_BEHIND_PROXY=1`** only when **every** request to Gunicorn comes through that trusted proxy (typical Docker internal network); if Gunicorn is reachable directly from untrusted clients, do not enable it—`X-Forwarded-Proto` could be forged.
+
+### Production-style Django settings
+
+With **`DEBUG=False`**, settings enforce:
+
+- **`ALLOWED_HOSTS`** is required and must not be `*`.
+- **`SESSION_COOKIE_SECURE`** / **`CSRF_COOKIE_SECURE`** default to on (overridable via env).
+- **`SECURE_SSL_REDIRECT`** defaults to off so HTTP→HTTPS is usually handled at nginx; set **`SECURE_SSL_REDIRECT=true`** only if Django is the TLS edge.
+- Optional **HSTS** via **`SECURE_HSTS_SECONDS`** (and related flags in `.env.example`).
+
+After setting production-like variables in `.env`, run:
+
+```bash
+make check-deploy
+```
+
+Fix any issues reported by `manage.py check --deploy`.
+
 ### CI / automation
 
 Export `SECRET_KEY` in the environment (or provide a `.env` file) before `docker compose` — the same `:?` rule applies. Example: `SECRET_KEY="$(openssl rand -base64 48)" docker compose up -d` for ephemeral test runs.
@@ -62,11 +93,11 @@ Use this before pointing a real domain or live Stripe keys at the app. Not every
 | Area | Check |
 |------|--------|
 | **Secrets** | `SECRET_KEY` is long, random, unique per environment; **never** committed (`.env` is gitignored). Rotate if it ever leaked. |
-| **Django** | `DEBUG=False`. `ALLOWED_HOSTS` lists only your domain(s). Set `CSRF_TRUSTED_ORIGINS` for HTTPS origins if you use a reverse proxy. |
+| **Django** | `DEBUG=False`. `ALLOWED_HOSTS` lists only your domain(s) (never `*`). Set `CSRF_TRUSTED_ORIGINS` for each HTTPS origin. Use `DJANGO_BEHIND_PROXY=1` behind nginx/Traefik; run `make check-deploy`. |
 | **Database** | `POSTGRES_PASSWORD` is strong and not the sample `ecommerce` value. Restrict Postgres to internal networks only. |
 | **Stripe** | Live `STRIPE_*` keys and `STRIPE_WEBHOOK_SECRET`; webhook URL uses HTTPS and matches the deployed host. |
 | **Email** | Real `EMAIL_*` / SMTP or provider backend — not the console backend. |
-| **TLS** | Terminate TLS at a reverse proxy (nginx, Traefik, load balancer) or platform ingress; do not serve customers over plain HTTP. |
+| **TLS** | Terminate TLS at nginx (this repo includes a proxy profile), Traefik, or your LB; do not expose Gunicorn publicly. Prefer redirects to HTTPS at the proxy; see `SECURE_SSL_REDIRECT` in `.env.example`. |
 | **Broker / cache** | RabbitMQ and Redis are not exposed publicly; change default broker credentials if ports are reachable. |
 | **Media & static** | Media volume or object storage is backed up; understand who can read/write `MEDIA_ROOT`. |
 | **Process** | Run `python manage.py check --deploy` in the target environment and fix reported issues. |
@@ -170,7 +201,7 @@ By default `EMAIL_BACKEND` is the console backend unless you set `EMAIL_BACKEND`
 Proposed improvements (not implemented here; ideas for evolving the project):
 
 1. ~~**Configuration** — Tighten Compose defaults (no insecure `SECRET_KEY` in repo workflows) and add a production env checklist.~~ (Done: required `SECRET_KEY`, `make env`, checklist above.)
-2. **Production readiness** — Apply the checklist; harden `ALLOWED_HOSTS`, `DEBUG`, HTTPS, reverse proxy in front of Gunicorn.
+2. ~~**Production readiness** — Apply the checklist; harden `ALLOWED_HOSTS`, `DEBUG`, HTTPS, reverse proxy in front of Gunicorn.~~ (Done: strict `ALLOWED_HOSTS` when `DEBUG=False`, proxy-aware TLS flags, optional nginx profile, `make check-deploy`.)
 3. **Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.
 4. **Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.
 5. **WeasyPrint + static files** — Ensure `static/css/pdf.css` is available at `STATIC_ROOT` in all environments (e.g. `collectstatic` in CI/deploy) so PDF generation does not depend on dev-only paths.
