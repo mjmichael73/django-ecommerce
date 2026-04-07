@@ -31,7 +31,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 - `be/requirements.txt` — Python dependencies
 - `be/ecommerce/` — Django project (`manage.py`, apps: `shop`, `cart`, `orders`, `payment`, `coupons`)
 - `Dockerfile` — app image (WeasyPrint system libs + Python)
-- `docker-compose.yml` — PostgreSQL, Redis, RabbitMQ, Gunicorn web, Celery worker, optional **nginx** (`reverse-proxy` profile)
+- `docker-compose.yml` — PostgreSQL, Redis (optional AOF volume), RabbitMQ, Gunicorn, Celery worker (healthcheck), optional **Flower** (`flower` profile) and **nginx** (`reverse-proxy` profile)
 - `docker/nginx/default.conf` — reverse-proxy headers for Gunicorn (`X-Forwarded-*`)
 - `docker/entrypoint.sh` — wait for Postgres, `migrate`, `collectstatic`
 - `.env.example` — template for `.env` (never commit real secrets)
@@ -46,6 +46,8 @@ make env              # creates .env from .env.example and generates SECRET_KEY 
 docker compose build
 docker compose up
 ```
+
+Use **`make up-d`** or **`make up-detached`** for a **detached** stack. Do **not** run `make up -d`: GNU Make treats `-d` as debug mode, so Compose never receives `-d`, and an empty `SECRET_KEY` in `.env` will still break `docker compose up`.
 
 - **App:** http://localhost:8000/  
 - **RabbitMQ management:** http://localhost:15672/ (guest / guest)
@@ -82,9 +84,29 @@ make check-deploy
 
 Fix any issues reported by `manage.py check --deploy`.
 
+### Celery worker health and Flower
+
+- **`celery-worker`** exposes a Docker **healthcheck** that runs `celery inspect ping` against the broker so unhealthy workers surface in `docker compose ps` and can gate dependent services.
+- **Flower** (task monitor) is a dedicated Compose service under the **`flower`** profile. It **replaces the image entrypoint** so it does not run migrations or `collectstatic`.
+
+```bash
+make up-d-flower
+# Dashboard: http://localhost:5555/
+```
+
+Combine profiles when needed, e.g. `docker compose --profile flower --profile reverse-proxy up -d`.
+
+### Redis and the Celery result backend
+
+The **Redis** service uses a named volume **`redis_data`** and, by default (**`REDIS_AOF=yes`**), runs with **AOF** (`appendonly yes`, `appendfsync everysec`) so result-backend data survives container restarts. For a **fully ephemeral** Redis (dev only), set **`REDIS_AOF=no`** in `.env`; Redis then runs without AOF/RDB persistence—results are lost when the container is recreated.
+
+`make down-volumes` removes **`redis_data`** along with Postgres and media volumes.
+
 ### CI / automation
 
 Export `SECRET_KEY` in the environment (or provide a `.env` file) before `docker compose` — the same `:?` rule applies. Example: `SECRET_KEY="$(openssl rand -base64 48)" docker compose up -d` for ephemeral test runs.
+
+**Compose file parsing:** Any `docker compose` command expands `${SECRET_KEY:?…}`. If `.env` has no `SECRET_KEY` yet, raw CLI calls (e.g. `docker compose build`) fail. **`make`** targets that are safe without a real secret (`build`, `down`, `logs`, `ps`, `restart`, `exec` helpers, …) set a **parse-only placeholder** for that invocation. **`make up`** / **`make up-d`** still require a real key—run **`make env`** first.
 
 ## Production environment checklist
 
@@ -98,19 +120,10 @@ Use this before pointing a real domain or live Stripe keys at the app. Not every
 | **Stripe** | Live `STRIPE_*` keys and `STRIPE_WEBHOOK_SECRET`; webhook URL uses HTTPS and matches the deployed host. |
 | **Email** | Real `EMAIL_*` / SMTP or provider backend — not the console backend. |
 | **TLS** | Terminate TLS at nginx (this repo includes a proxy profile), Traefik, or your LB; do not expose Gunicorn publicly. Prefer redirects to HTTPS at the proxy; see `SECURE_SSL_REDIRECT` in `.env.example`. |
-| **Broker / cache** | RabbitMQ and Redis are not exposed publicly; change default broker credentials if ports are reachable. |
+| **Broker / cache** | RabbitMQ and Redis are not exposed publicly; change default broker credentials if ports are reachable. Redis persistence (`REDIS_AOF`, `redis_data` volume) is on by default for the result backend. |
 | **Media & static** | Media volume or object storage is backed up; understand who can read/write `MEDIA_ROOT`. |
 | **Process** | Run `python manage.py check --deploy` in the target environment and fix reported issues. |
 | **Dependencies** | Pin or lock images and Python packages; plan security updates. |
-
-Optional **Flower** (same image, one-off):
-
-```bash
-docker compose run --rm -p 5555:5555 celery-worker \
-  celery -A ecommerce flower --address=0.0.0.0 --port=5555
-```
-
-Then open http://localhost:5555/ (add a dedicated `flower` service if you prefer it always on).
 
 ## Setup (local Python, no Compose)
 
@@ -184,12 +197,12 @@ celery -A ecommerce worker -l info
 celery -A ecommerce worker -l info -P solo
 ```
 
-## Flower (optional)
+## Flower (optional, local Python)
 
-Monitor tasks and workers:
+With the stack in Docker, prefer **`make up-d-flower`**. On the host:
 
 ```bash
-celery -A ecommerce flower
+cd be/ecommerce && celery -A ecommerce flower
 ```
 
 ## Email in development
@@ -202,7 +215,7 @@ Proposed improvements (not implemented here; ideas for evolving the project):
 
 1. ~~**Configuration** — Tighten Compose defaults (no insecure `SECRET_KEY` in repo workflows) and add a production env checklist.~~ (Done: required `SECRET_KEY`, `make env`, checklist above.)
 2. ~~**Production readiness** — Apply the checklist; harden `ALLOWED_HOSTS`, `DEBUG`, HTTPS, reverse proxy in front of Gunicorn.~~ (Done: strict `ALLOWED_HOSTS` when `DEBUG=False`, proxy-aware TLS flags, optional nginx profile, `make check-deploy`.)
-3. **Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.
+3. ~~**Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.~~ (Done: `flower` profile + worker `inspect ping` healthcheck; `REDIS_AOF` + `redis_data` volume.)
 4. **Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.
 5. **WeasyPrint + static files** — Ensure `static/css/pdf.css` is available at `STATIC_ROOT` in all environments (e.g. `collectstatic` in CI/deploy) so PDF generation does not depend on dev-only paths.
 6. **Tests** — Add pytest (or Django’s test runner) coverage for checkout, webhooks (signed events), and coupon edge cases.
