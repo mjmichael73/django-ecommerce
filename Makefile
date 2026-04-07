@@ -13,7 +13,7 @@ COMPOSE_PARSE_ONLY_ENV = SECRET_KEY="$${SECRET_KEY:-__compose_parse_only_run_mak
 
 help: ## Show targets (all commands assume Docker Compose is running unless noted)
 	@echo "Docker development — http://localhost:8000 · RabbitMQ UI http://localhost:15672"
-	@echo "Optional: nginx :8080 (make up-d-proxy) · Flower :5555 (make up-d-flower)"
+	@echo "Flower: http://localhost:5555 (starts with make up-d) · Optional nginx :8080 (make up-d-proxy)"
 	@echo ""
 	@echo "Detached stack:  make up-d   (hyphen in target name — NOT \"make up -d\", that is Make debug)"
 	@echo ""
@@ -45,8 +45,7 @@ up-proxy: ## Start stack with nginx reverse-proxy (foreground) — app on :8080 
 up-d-proxy: ## Same with reverse-proxy detached
 	$(COMPOSE) --profile reverse-proxy up -d
 
-up-d-flower: ## Detached stack + Flower dashboard at http://localhost:5555
-	$(COMPOSE) --profile flower up -d
+up-d-flower: up-d ## Legacy alias — Flower is included in `make up-d` now
 
 down: ## Stop stack (keeps volumes / database data)
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) down
@@ -99,8 +98,8 @@ manage: ## Run any manage.py command, e.g. make manage ARGS='showmigrations'
 check-deploy: ## Django deployment checks (use DEBUG=False and real ALLOWED_HOSTS in .env)
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) exec $(WEB) python manage.py check --deploy
 
-flower: ## Alias: start stack with Flower (same as up-d-flower)
-	@$(MAKE) up-d-flower
+flower: ## Ensure Flower is running (starts stack detached if needed)
+	@$(COMPOSE) up -d flower
 
 clean: ## Remove __pycache__ on the host under be/ecommerce (not inside containers)
 	find be/ecommerce -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true

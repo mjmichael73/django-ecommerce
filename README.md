@@ -19,7 +19,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 | Queue | Celery 5 + RabbitMQ; Redis for Celery results (Compose)                         |
 | Pay   | [Stripe](https://stripe.com/)                                                 |
 | PDF   | [WeasyPrint](https://weasyprint.org/)                                         |
-| Ops   | Optional nginx reverse-proxy profile; [Flower](https://flower.readthedocs.io/) for Celery |
+| Ops   | [Flower](https://flower.readthedocs.io/) on :5555 with the default stack; optional nginx `reverse-proxy` profile |
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 - `be/requirements.txt` — Python dependencies
 - `be/ecommerce/` — Django project (`manage.py`, apps: `shop`, `cart`, `orders`, `payment`, `coupons`)
 - `Dockerfile` — app image (WeasyPrint system libs + Python)
-- `docker-compose.yml` — PostgreSQL, Redis (optional AOF volume), RabbitMQ, Gunicorn, Celery worker (healthcheck), optional **Flower** (`flower` profile) and **nginx** (`reverse-proxy` profile)
+- `docker-compose.yml` — PostgreSQL, Redis (optional AOF volume), RabbitMQ, Gunicorn, Celery worker (healthcheck), **Flower**, optional **nginx** (`reverse-proxy` profile)
 - `docker/nginx/default.conf` — reverse-proxy headers for Gunicorn (`X-Forwarded-*`)
 - `docker/entrypoint.sh` — wait for Postgres, `migrate`, `collectstatic`
 - `.env.example` — template for `.env` (never commit real secrets)
@@ -86,15 +86,12 @@ Fix any issues reported by `manage.py check --deploy`.
 
 ### Celery worker health and Flower
 
-- **`celery-worker`** exposes a Docker **healthcheck** that runs `celery inspect ping` against the broker so unhealthy workers surface in `docker compose ps` and can gate dependent services.
-- **Flower** (task monitor) is a dedicated Compose service under the **`flower`** profile. It **replaces the image entrypoint** so it does not run migrations or `collectstatic`.
+- **`celery-worker`** exposes a Docker **healthcheck** (`celery inspect ping`) so worker status shows in `docker compose ps`.
+- **Flower** starts with the default stack (**`make up-d`**). It **replaces the image entrypoint** (no migrate/collectstatic). **Dashboard:** http://localhost:5555/
 
-```bash
-make up-d-flower
-# Dashboard: http://localhost:5555/
-```
+If Flower was not created with an older Compose file, run **`make flower`** or **`docker compose up -d flower`**.
 
-Combine profiles when needed, e.g. `docker compose --profile flower --profile reverse-proxy up -d`.
+Combine with nginx when needed: `docker compose --profile reverse-proxy up -d`.
 
 ### Redis and the Celery result backend
 
@@ -199,7 +196,7 @@ celery -A ecommerce worker -l info -P solo
 
 ## Flower (optional, local Python)
 
-With the stack in Docker, prefer **`make up-d-flower`**. On the host:
+With Docker, Flower is already on **http://localhost:5555/** after **`make up-d`**. On the host only:
 
 ```bash
 cd be/ecommerce && celery -A ecommerce flower
@@ -215,7 +212,7 @@ Proposed improvements (not implemented here; ideas for evolving the project):
 
 1. ~~**Configuration** — Tighten Compose defaults (no insecure `SECRET_KEY` in repo workflows) and add a production env checklist.~~ (Done: required `SECRET_KEY`, `make env`, checklist above.)
 2. ~~**Production readiness** — Apply the checklist; harden `ALLOWED_HOSTS`, `DEBUG`, HTTPS, reverse proxy in front of Gunicorn.~~ (Done: strict `ALLOWED_HOSTS` when `DEBUG=False`, proxy-aware TLS flags, optional nginx profile, `make check-deploy`.)
-3. ~~**Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.~~ (Done: `flower` profile + worker `inspect ping` healthcheck; `REDIS_AOF` + `redis_data` volume.)
+3. ~~**Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.~~ (Done: Flower in default compose, worker `inspect ping` healthcheck; `REDIS_AOF` + `redis_data` volume.)
 4. **Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.
 5. **WeasyPrint + static files** — Ensure `static/css/pdf.css` is available at `STATIC_ROOT` in all environments (e.g. `collectstatic` in CI/deploy) so PDF generation does not depend on dev-only paths.
 6. **Tests** — Add pytest (or Django’s test runner) coverage for checkout, webhooks (signed events), and coupon edge cases.
