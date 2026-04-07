@@ -37,7 +37,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 - `.env.example` — template for `.env` (never commit real secrets)
 - `scripts/bootstrap_env.py` — used by `make env` to create `.env` and a strong `SECRET_KEY`
 - `ecommerce/pdf_stylesheet.py` — resolves `css/pdf.css` for WeasyPrint (`STATIC_ROOT` or staticfiles finders)
-- `.github/workflows/ci.yml` — runs `collectstatic` and checks `static/css/pdf.css` exists
+- `.github/workflows/ci.yml` — runs `collectstatic` + stylesheet check, and **`manage.py test`** for `orders`, `payment`, `coupons`
 
 ## Docker (full stack)
 
@@ -95,11 +95,28 @@ If Flower was not created with an older Compose file, run **`make flower`** or *
 
 Combine with nginx when needed: `docker compose --profile reverse-proxy up -d`.
 
+### Invoice PDFs (WeasyPrint)
+
+The invoice stylesheet is **`shop/static/css/pdf.css`**. **`ecommerce.pdf_stylesheet.pdf_invoice_css_path()`** uses **`STATIC_ROOT/css/pdf.css`** after **`collectstatic`**, and falls back to staticfiles **finders** when `STATIC_ROOT` is not populated (typical local **`runserver`**). Docker runs **`collectstatic`** at image build and in the entrypoint. CI (**`.github/workflows/ci.yml`**) checks the file exists; with a local venv you can run **`make verify-pdf-static`**.
+
 ### Redis and the Celery result backend
 
 The **Redis** service uses a named volume **`redis_data`** and, by default (**`REDIS_AOF=yes`**), runs with **AOF** (`appendonly yes`, `appendfsync everysec`) so result-backend data survives container restarts. For a **fully ephemeral** Redis (dev only), set **`REDIS_AOF=no`** in `.env`; Redis then runs without AOF/RDB persistence—results are lost when the container is recreated.
 
 `make down-volumes` removes **`redis_data`** along with Postgres and media volumes.
+
+### Running tests (Docker Compose)
+
+Tests use Django’s built-in runner (**not pytest**) and target **checkout**, **Stripe webhook** (signed payload handling via mocked `construct_event`), and **coupon** edge cases.
+
+With the stack running:
+
+```bash
+make up-d
+make test
+```
+
+**`make test`** uses **`docker compose run`** so **`./be/ecommerce`** is bind-mounted into a short-lived **`web`** container (your working tree, no image rebuild). Dependencies (**`db`**, **`redis`**, **`rabbitmq`**) must already be up (**`make up-d`**). On the host (venv with deps): **`cd be/ecommerce && SECRET_KEY=… python manage.py test`** the same labels. CI runs the same suite in **`.github/workflows/ci.yml`** (`test` job).
 
 ### CI / automation
 
@@ -217,7 +234,7 @@ Proposed improvements (not implemented here; ideas for evolving the project):
 3. ~~**Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.~~ (Done: Flower in default compose, worker `inspect ping` healthcheck; `REDIS_AOF` + `redis_data` volume.)
 4. **Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.
 5. ~~**WeasyPrint + static files** — Ensure `static/css/pdf.css` is available at `STATIC_ROOT` in all environments (e.g. `collectstatic` in CI/deploy) so PDF generation does not depend on dev-only paths.~~ (Done: `ecommerce/pdf_stylesheet.py`, CI job, `make verify-pdf-static`.)
-6. **Tests** — Add pytest (or Django’s test runner) coverage for checkout, webhooks (signed events), and coupon edge cases.
+6. ~~**Tests** — Add pytest (or Django’s test runner) coverage for checkout, webhooks (signed events), and coupon edge cases.~~ (Done: Django `TestCase` modules; `make test` via Compose; CI job.)
 7. **Observability** — Structured logging, request IDs, and Celery task failure alerts (e.g. Sentry).
 8. **UX and catalog** — Search/faceted navigation, inventory flags, product images pipeline, and responsive polish.
 9. **Security** — Rate limiting on checkout and coupon application, CSRF/session review for payment return URLs, and periodic dependency updates.

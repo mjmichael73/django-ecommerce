@@ -7,6 +7,13 @@ from coupons.models import Coupon
 
 
 class Order(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='orders',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
     email = models.EmailField()

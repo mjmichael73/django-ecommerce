@@ -92,8 +92,12 @@ collectstatic: ## collectstatic (entrypoint usually runs this on start)
 verify-pdf-static: ## Host check: collectstatic + assert static/css/pdf.css (CI parity, needs venv)
 	cd be/ecommerce && SECRET_KEY="$${SECRET_KEY:-__local_collectstatic_check__}" python3 manage.py collectstatic --noinput && test -f static/css/pdf.css && echo OK
 
-test: ## Run Django tests inside the web container
-	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) exec $(WEB) python manage.py test
+test: ## Run Django tests via compose run (bind-mounts ./be/ecommerce; DB etc. must be up: make up-d)
+	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) run --rm \
+		-e SKIP_COLLECTSTATIC=1 \
+		-v "$(CURDIR)/be/ecommerce:/app" \
+		-v media_data:/app/media \
+		$(WEB) python manage.py test orders.tests payment.tests coupons.tests accounts.tests shop.tests -v2
 
 manage: ## Run any manage.py command, e.g. make manage ARGS='showmigrations'
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) exec $(WEB) python manage.py $(ARGS)

@@ -1,0 +1,34 @@
+{% extends "shop/base.html" %}
+
+{% block title %}Order #{{ order.id }} · Studio Market{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="page-head__title">Order #{{ order.id }}</h1>
+  <p class="page-head__crumb"><a href="{% url 'accounts:order_list' %}">← All orders</a></p>
+</div>
+<div class="checkout-grid">
+  <div class="order-form-panel">
+    <h2>Shipping</h2>
+    <p>{{ order.first_name }} {{ order.last_name }}<br>
+    {{ order.email }}<br>
+    {{ order.address }}, {{ order.postal_code }} {{ order.city }}</p>
+    <p><strong>Status:</strong> {% if order.paid %}Paid{% else %}Pending payment{% endif %}</p>
+    {% if order.stripe_id %}
+    <p><strong>Payment:</strong> <a href="{{ order.get_stripe_url }}" target="_blank" rel="noopener">{{ order.stripe_id }}</a></p>
+    {% endif %}
+  </div>
+  <aside class="order-info">
+    <h3>Items</h3>
+    <ul>
+      {% for item in order.items.all %}
+      <li>
+        <span>{{ item.quantity }}× {{ item.product.name }}</span>
+        <span>${{ item.get_cost|floatformat:2 }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p>Total <strong>${{ order.get_total_cost|floatformat:2 }}</strong></p>
+  </aside>
+</div>
+{% endblock %}

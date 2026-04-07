@@ -1,0 +1,20 @@
+{% extends "shop/base.html" %}
+
+{% block title %}Register · Studio Market{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="page-head__title">Create an account</h1>
+  <p class="page-head__crumb">Save time at checkout and track your orders</p>
+</div>
+<div class="auth-stack">
+  <div class="order-form-panel auth-panel">
+    <form method="post" class="order-form">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <p><input type="submit" value="Register"></p>
+    </form>
+    <p class="auth-panel__footer">Already have an account? <a href="{% url 'accounts:login' %}">Log in</a></p>
+  </div>
+</div>
+{% endblock %}

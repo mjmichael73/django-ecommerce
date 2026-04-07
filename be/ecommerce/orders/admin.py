@@ -62,6 +62,7 @@ class OrderItemInline(admin.TabularInline):
 class OrderAdmin(admin.ModelAdmin):
     list_display = [
         'id',
+        'user',
         'first_name',
         'last_name',
         'email',

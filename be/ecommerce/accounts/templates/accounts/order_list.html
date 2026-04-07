@@ -1,0 +1,38 @@
+{% extends "shop/base.html" %}
+
+{% block title %}Order history · Studio Market{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="page-head__title">Order history</h1>
+  <p class="page-head__crumb">Orders placed while you were signed in</p>
+</div>
+{% if orders %}
+<div class="order-history">
+  <table class="order-history__table">
+    <thead>
+      <tr>
+        <th>Order</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in orders %}
+      <tr>
+        <td><a href="{% url 'accounts:order_detail' order.pk %}">#{{ order.id }}</a></td>
+        <td>{{ order.created|date:"M j, Y" }}</td>
+        <td>{% if order.paid %}Paid{% else %}Pending{% endif %}</td>
+        <td>${{ order.get_total_cost|floatformat:2 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="panel panel--narrow">
+  <p class="status-hero">No orders yet. <a href="{% url 'shop:product_list' %}">Browse the shop</a> and check out while logged in.</p>
+</div>
+{% endif %}
+{% endblock %}

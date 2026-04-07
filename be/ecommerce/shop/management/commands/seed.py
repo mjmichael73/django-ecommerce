@@ -10,12 +10,30 @@ from django.utils.text import slugify
 from PIL import Image
 
 from shop.models import Category, Product
+from orders.models import Order, OrderItem
 
 User = get_user_model()
 
 SUPERUSER_USERNAME = 'superadmin'
 SUPERUSER_EMAIL = 'superadmin@example.com'
 SUPERUSER_PASSWORD = 'password'
+
+DEMO_CUSTOMERS = [
+    {
+        'username': 'demo',
+        'email': 'demo@example.com',
+        'password': 'password',
+        'first_name': 'Demo',
+        'last_name': 'Customer',
+    },
+    {
+        'username': 'alice',
+        'email': 'alice@example.com',
+        'password': 'password',
+        'first_name': 'Alice',
+        'last_name': 'Buyer',
+    },
+]
 
 # Demo catalog: categories implied by first product in group
 SEED_ROWS = [
@@ -106,9 +124,10 @@ def build_placeholder_jpeg(name: str) -> ContentFile:
 
 class Command(BaseCommand):
     help = (
-        'Seed categories, products (with generated placeholder images), and a superuser '
-        f'(username {SUPERUSER_USERNAME!r}, password {SUPERUSER_PASSWORD!r}). '
-        'Safe to run multiple times.'
+        'Seed categories, products (with generated placeholder images), a superuser '
+        f'(username {SUPERUSER_USERNAME!r}, password {SUPERUSER_PASSWORD!r}), '
+        'and demo storefront users demo + alice (password: password) with sample orders '
+        'unless --no-demo-users is set. Safe to run multiple times.'
     )
 
     def add_arguments(self, parser):
@@ -122,10 +141,16 @@ class Command(BaseCommand):
             action='store_true',
             help='Skip creating or updating the admin superuser.',
         )
+        parser.add_argument(
+            '--no-demo-users',
+            action='store_true',
+            help='Skip demo storefront accounts and sample orders (demo/alice, password: password).',
+        )
 
     def handle(self, *args, **options):
         no_images = options['no_images']
         no_superuser = options['no_superuser']
+        no_demo_users = options['no_demo_users']
 
         with transaction.atomic():
             categories_by_slug = {}
@@ -206,4 +231,80 @@ class Command(BaseCommand):
                     )
                 )
 
+            if not no_demo_users:
+                self._seed_demo_customers()
+
         self.stdout.write(self.style.SUCCESS('Seeding complete.'))
+
+    def _seed_demo_customers(self):
+        products = list(Product.objects.filter(available=True).order_by('id')[:4])
+        if not products:
+            self.stdout.write(
+                self.style.WARNING('Skipping demo customers: no products in database.')
+            )
+            return
+        for spec in DEMO_CUSTOMERS:
+            user, created = User.objects.get_or_create(
+                username=spec['username'],
+                defaults={
+                    'email': spec['email'],
+                    'first_name': spec['first_name'],
+                    'last_name': spec['last_name'],
+                    'is_staff': False,
+                    'is_superuser': False,
+                },
+            )
+            user.email = spec['email']
+            user.first_name = spec['first_name']
+            user.last_name = spec['last_name']
+            user.is_staff = False
+            user.is_superuser = False
+            user.set_password(spec['password'])
+            user.save()
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Demo customer {'created' if created else 'updated'}: "
+                    f"{spec['username']!r} (password: {spec['password']!r})"
+                )
+            )
+            if Order.objects.filter(user=user).exists():
+                continue
+            p0, p1 = products[0], products[1] if len(products) > 1 else products[0]
+            paid = Order.objects.create(
+                user=user,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                email=user.email,
+                address='42 Seed Lane',
+                postal_code='94103',
+                city='San Francisco',
+                paid=True,
+                stripe_id='pi_seed_placeholder',
+            )
+            OrderItem.objects.create(
+                order=paid,
+                product=p0,
+                price=p0.price,
+                quantity=1,
+            )
+            pending = Order.objects.create(
+                user=user,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                email=user.email,
+                address='42 Seed Lane',
+                postal_code='94103',
+                city='San Francisco',
+                paid=False,
+            )
+            OrderItem.objects.create(
+                order=pending,
+                product=p1,
+                price=p1.price,
+                quantity=2,
+            )
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"  → Sample orders {paid.id} (paid), {pending.id} (pending) for {spec['username']}"
+                )
+            )
