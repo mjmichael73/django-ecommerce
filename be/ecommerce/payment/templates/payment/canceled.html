@@ -1,6 +1,12 @@
 {% extends "shop/base.html" %}
-{% block title %}Payment canceled{% endblock %}
+{% block title %}Payment canceled · Studio Market{% endblock %}
 {% block content %}
- <h1>Your payment has not been processed</h1>
- <p>There was a problem processing your payment.</p>
+<div class="panel panel--narrow">
+  <div class="status-hero">
+    <div class="status-hero__icon status-hero__icon--warn" aria-hidden="true">!</div>
+    <h1>Payment not completed</h1>
+    <p>No charge was made. You can return to your cart and try again whenever you’re ready.</p>
+    <p style="margin-top:1.25rem"><a href="{% url 'cart:cart_detail' %}" class="button">Back to cart</a></p>
+  </div>
+</div>
 {% endblock %}

@@ -1,23 +1,28 @@
 {% extends "shop/base.html" %}
 {% load static %}
-{% block title %}Pay your order{% endblock %}
+{% block title %}Pay order · Studio Market{% endblock %}
 {% block content %}
-<h1>Order summary</h1>
+<div class="page-head">
+  <h1 class="page-head__title">Order summary</h1>
+  <p class="page-head__crumb">Confirm and pay securely</p>
+</div>
+
+<div class="table-wrap">
 <table class="cart">
     <thead>
     <tr>
         <th>Image</th>
         <th>Product</th>
         <th>Price</th>
-        <th>Quantity</th>
+        <th>Qty</th>
         <th>Total</th>
     </tr>
     </thead>
     <tbody>
     {% for item in order.items.all %}
-    <tr class="row{% cycle "1" "2" %}">
+    <tr class="row{% cycle '1' '2' %}">
     <td>
-        <img src="{% if item.product.image %}{{ item.product.image.url }}{% else %}{% static "img/no_image.png" %}{% endif %}">
+        <img src="{% if item.product.image %}{{ item.product.image.url }}{% else %}{% static 'img/no_image.svg' %}{% endif %}" alt="">
     </td>
     <td>{{ item.product.name }}</td>
     <td class="num">${{ item.price }}</td>
@@ -31,8 +36,12 @@
     </tr>
     </tbody>
 </table>
-<form action="{% url "payment:process" %}" method="post">
-<input type="submit" value="Pay now">
+</div>
+
+<div class="panel pay-actions">
+<form action="{% url 'payment:process' %}" method="post">
 {% csrf_token %}
+<input type="submit" value="Pay with Stripe">
 </form>
+</div>
 {% endblock %}

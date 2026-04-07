@@ -1,6 +1,11 @@
 {% extends "shop/base.html" %}
-{% block title %}Payment successful{% endblock %}
+{% block title %}Payment successful · Studio Market{% endblock %}
 {% block content %}
- <h1>Your payment was successful</h1>
- <p>Your payment has been processed successfully.</p>
+<div class="panel panel--narrow">
+  <div class="status-hero">
+    <div class="status-hero__icon status-hero__icon--ok" aria-hidden="true">✓</div>
+    <h1>Payment successful</h1>
+    <p>Your payment went through. You’ll receive a confirmation email shortly.</p>
+  </div>
+</div>
 {% endblock %}
