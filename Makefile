@@ -17,9 +17,8 @@ help: ## Show targets (all commands assume Docker Compose is running unless note
 	@grep -hE '^[a-zA-Z0-9_.-]+:.*##' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}' | sort
 
-env: ## Create .env from .env.example if .env is missing
-	@test -f .env || cp .env.example .env
-	@echo ".env ready (edit STRIPE_* and SECRET_KEY as needed)"
+env: ## Create .env from .env.example and ensure SECRET_KEY (required by Compose)
+	python3 scripts/bootstrap_env.py
 
 build: ## Build Compose images
 	$(COMPOSE) build

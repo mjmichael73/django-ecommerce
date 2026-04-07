@@ -1,5 +1,7 @@
 .idea
+.env
 venv
+.venv
 be/ecommerce/__pycache__/
 be/ecommerce/*/__pycache__/
 be/ecommerce/*/models/__pycache__/

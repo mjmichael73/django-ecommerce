@@ -50,7 +50,7 @@ services:
     ports:
       - '8000:8000'
     environment:
-      SECRET_KEY: ${SECRET_KEY:-django-insecure-docker-dev-change-me}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required in .env - run make env}
       DEBUG: ${DEBUG:-True}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web}
       POSTGRES_DB: ${POSTGRES_DB:-ecommerce}
@@ -83,7 +83,7 @@ services:
     restart: unless-stopped
     command: ['celery', '-A', 'ecommerce', 'worker', '-l', 'info']
     environment:
-      SECRET_KEY: ${SECRET_KEY:-django-insecure-docker-dev-change-me}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required in .env - run make env}
       DEBUG: ${DEBUG:-True}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web}
       POSTGRES_DB: ${POSTGRES_DB:-ecommerce}

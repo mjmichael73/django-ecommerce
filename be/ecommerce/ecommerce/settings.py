@@ -34,6 +34,11 @@ if _allowed.strip():
 else:
     ALLOWED_HOSTS = []
 
+# Trusted origins for CSRF (e.g. https://shop.example.com behind a TLS-terminating proxy)
+_csrf = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+if _csrf.strip():
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
+
 # Application definition
 
 INSTALLED_APPS = [

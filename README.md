@@ -33,14 +33,15 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 - `Dockerfile` — app image (WeasyPrint system libs + Python)
 - `docker-compose.yml` — PostgreSQL, Redis, RabbitMQ, Gunicorn web, Celery worker
 - `docker/entrypoint.sh` — wait for Postgres, `migrate`, `collectstatic`
-- `.env.example` — copy to `.env` to override secrets and toggles for Compose
+- `.env.example` — template for `.env` (never commit real secrets)
+- `scripts/bootstrap_env.py` — used by `make env` to create `.env` and a strong `SECRET_KEY`
 
 ## Docker (full stack)
 
-From the **repository root**:
+`SECRET_KEY` is **required**: Compose does not ship an insecure default. From the **repository root**:
 
 ```bash
-cp .env.example .env   # optional; defaults are embedded in compose for quick starts
+make env              # creates .env from .env.example and generates SECRET_KEY if needed
 docker compose build
 docker compose up
 ```
@@ -48,7 +49,28 @@ docker compose up
 - **App:** http://localhost:8000/  
 - **RabbitMQ management:** http://localhost:15672/ (guest / guest)
 
-The `web` service runs Gunicorn; the first start runs migrations and `collectstatic`. Uploaded media is stored in the `media_data` volume. Set `STRIPE_*` and `SECRET_KEY` in `.env` before any real traffic.
+The `web` service runs Gunicorn; the first start runs migrations and `collectstatic`. Uploaded media is stored in the `media_data` volume. Set **`STRIPE_*`** in `.env` before taking real payments.
+
+### CI / automation
+
+Export `SECRET_KEY` in the environment (or provide a `.env` file) before `docker compose` — the same `:?` rule applies. Example: `SECRET_KEY="$(openssl rand -base64 48)" docker compose up -d` for ephemeral test runs.
+
+## Production environment checklist
+
+Use this before pointing a real domain or live Stripe keys at the app. Not every item may apply to your host, but nothing below should be surprising in production.
+
+| Area | Check |
+|------|--------|
+| **Secrets** | `SECRET_KEY` is long, random, unique per environment; **never** committed (`.env` is gitignored). Rotate if it ever leaked. |
+| **Django** | `DEBUG=False`. `ALLOWED_HOSTS` lists only your domain(s). Set `CSRF_TRUSTED_ORIGINS` for HTTPS origins if you use a reverse proxy. |
+| **Database** | `POSTGRES_PASSWORD` is strong and not the sample `ecommerce` value. Restrict Postgres to internal networks only. |
+| **Stripe** | Live `STRIPE_*` keys and `STRIPE_WEBHOOK_SECRET`; webhook URL uses HTTPS and matches the deployed host. |
+| **Email** | Real `EMAIL_*` / SMTP or provider backend — not the console backend. |
+| **TLS** | Terminate TLS at a reverse proxy (nginx, Traefik, load balancer) or platform ingress; do not serve customers over plain HTTP. |
+| **Broker / cache** | RabbitMQ and Redis are not exposed publicly; change default broker credentials if ports are reachable. |
+| **Media & static** | Media volume or object storage is backed up; understand who can read/write `MEDIA_ROOT`. |
+| **Process** | Run `python manage.py check --deploy` in the target environment and fix reported issues. |
+| **Dependencies** | Pin or lock images and Python packages; plan security updates. |
 
 Optional **Flower** (same image, one-off):
 
@@ -147,8 +169,8 @@ By default `EMAIL_BACKEND` is the console backend unless you set `EMAIL_BACKEND`
 
 Proposed improvements (not implemented here; ideas for evolving the project):
 
-1. **Configuration** — Tighten Compose defaults (no insecure `SECRET_KEY` in repo workflows) and add a production env checklist.
-2. **Production readiness** — Harden `ALLOWED_HOSTS`, `DEBUG`, HTTPS, reverse proxy (e.g. Traefik or nginx) in front of Gunicorn.
+1. ~~**Configuration** — Tighten Compose defaults (no insecure `SECRET_KEY` in repo workflows) and add a production env checklist.~~ (Done: required `SECRET_KEY`, `make env`, checklist above.)
+2. **Production readiness** — Apply the checklist; harden `ALLOWED_HOSTS`, `DEBUG`, HTTPS, reverse proxy in front of Gunicorn.
 3. **Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.
 4. **Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.
 5. **WeasyPrint + static files** — Ensure `static/css/pdf.css` is available at `STATIC_ROOT` in all environments (e.g. `collectstatic` in CI/deploy) so PDF generation does not depend on dev-only paths.
