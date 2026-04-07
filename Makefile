@@ -1,7 +1,7 @@
 # Django ecommerce — Docker-first development (run from repo root)
 .PHONY: help env build up up-d up-detached up-proxy up-d-proxy up-d-flower down logs logs-web ps \
 	restart-web restart-worker migrate makemigrations seed createsuperuser shell \
-	collectstatic test manage sh check-deploy flower down-volumes clean
+	collectstatic verify-pdf-static test manage sh check-deploy flower down-volumes clean
 
 COMPOSE ?= docker compose
 WEB := web
@@ -88,6 +88,9 @@ sh: ## Shell inside the web container (/bin/sh)
 
 collectstatic: ## collectstatic (entrypoint usually runs this on start)
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) exec $(WEB) python manage.py collectstatic --noinput
+
+verify-pdf-static: ## Host check: collectstatic + assert static/css/pdf.css (CI parity, needs venv)
+	cd be/ecommerce && SECRET_KEY="$${SECRET_KEY:-__local_collectstatic_check__}" python3 manage.py collectstatic --noinput && test -f static/css/pdf.css && echo OK
 
 test: ## Run Django tests inside the web container
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) exec $(WEB) python manage.py test

@@ -36,6 +36,8 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 - `docker/entrypoint.sh` — wait for Postgres, `migrate`, `collectstatic`
 - `.env.example` — template for `.env` (never commit real secrets)
 - `scripts/bootstrap_env.py` — used by `make env` to create `.env` and a strong `SECRET_KEY`
+- `ecommerce/pdf_stylesheet.py` — resolves `css/pdf.css` for WeasyPrint (`STATIC_ROOT` or staticfiles finders)
+- `.github/workflows/ci.yml` — runs `collectstatic` and checks `static/css/pdf.css` exists
 
 ## Docker (full stack)
 
@@ -214,7 +216,7 @@ Proposed improvements (not implemented here; ideas for evolving the project):
 2. ~~**Production readiness** — Apply the checklist; harden `ALLOWED_HOSTS`, `DEBUG`, HTTPS, reverse proxy in front of Gunicorn.~~ (Done: strict `ALLOWED_HOSTS` when `DEBUG=False`, proxy-aware TLS flags, optional nginx profile, `make check-deploy`.)
 3. ~~**Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.~~ (Done: Flower in default compose, worker `inspect ping` healthcheck; `REDIS_AOF` + `redis_data` volume.)
 4. **Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.
-5. **WeasyPrint + static files** — Ensure `static/css/pdf.css` is available at `STATIC_ROOT` in all environments (e.g. `collectstatic` in CI/deploy) so PDF generation does not depend on dev-only paths.
+5. ~~**WeasyPrint + static files** — Ensure `static/css/pdf.css` is available at `STATIC_ROOT` in all environments (e.g. `collectstatic` in CI/deploy) so PDF generation does not depend on dev-only paths.~~ (Done: `ecommerce/pdf_stylesheet.py`, CI job, `make verify-pdf-static`.)
 6. **Tests** — Add pytest (or Django’s test runner) coverage for checkout, webhooks (signed events), and coupon edge cases.
 7. **Observability** — Structured logging, request IDs, and Celery task failure alerts (e.g. Sentry).
 8. **UX and catalog** — Search/faceted navigation, inventory flags, product images pipeline, and responsive polish.
