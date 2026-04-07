@@ -14,6 +14,9 @@ colorama==0.4.6
 cssselect2==0.7.0
 Django==5.0.3
 flower==2.0.1
+gunicorn==22.0.0
+psycopg2-binary==2.9.9
+whitenoise==6.6.0
 fonttools==4.51.0
 html5lib==1.1
 humanize==4.9.0
