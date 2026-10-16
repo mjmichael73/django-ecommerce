@@ -240,6 +240,16 @@ Proposed improvements (not implemented here; ideas for evolving the project):
 9. **Security** — Rate limiting on checkout and coupon application, CSRF/session review for payment return URLs, and periodic dependency updates.
 10. **Containerization** — Multi-stage image build, non-root user, and optional nginx sidecar for TLS and caching.
 
+## Documentation
+
+See the [docs/](docs/) folder for detailed documentation:
+
+- [Architecture](docs/architecture.md) — System architecture, data models, and design decisions
+- [Testing](docs/testing.md) — Testing strategy, unit tests, integration tests, and E2E tests
+- [Security](docs/security.md) — Security measures, configuration, and checklists
+- [Production](docs/production.md) — Production deployment guide and checklist
+- [Roadmap](docs/roadmap.md) — Future improvements and feature roadmap
+
 ## License
 
 If you publish this repository, add a `LICENSE` file; otherwise treat licensing as unspecified until you choose one.

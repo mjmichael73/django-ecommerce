@@ -1,0 +1,156 @@
+# AGENTS.md — Django E-commerce
+
+## Project Overview
+
+Django 5 e-commerce demo with session-based cart, Stripe Checkout payments, coupon discounts, and Celery background jobs for order emails and PDF invoices (WeasyPrint).
+
+**Stack:** Django 5.0, PostgreSQL, Redis, RabbitMQ, Celery 5, Stripe, WeasyPrint, Gunicorn, Docker Compose
+
+## Quick Start
+
+```bash
+# From repository root
+make env              # creates .env from .env.example and generates SECRET_KEY
+docker compose build
+docker compose up -d  # or make up-d
+```
+
+- **App:** http://localhost:8000/
+- **RabbitMQ:** http://localhost:15672/ (guest/guest)
+- **Flower:** http://localhost:5555/
+
+## Key Commands
+
+```bash
+make env              # setup .env with SECRET_KEY
+make up-d             # start stack detached
+make up-d-proxy       # start with nginx reverse proxy on :8080
+make migrate          # run migrations
+make seed             # load demo data (superuser: superadmin/password)
+make test             # run Django tests (requires stack running)
+make check-deploy     # Django deployment checks (DEBUG=False)
+make down             # stop stack (keep volumes)
+make down-volumes     # stop stack and remove volumes
+make logs-web         # follow web logs
+make shell            # Django shell in web container
+```
+
+## Project Structure
+
+```
+django-ecommerce/
+├── be/
+│   └── ecommerce/           # Django project
+│       ├── accounts/        # User authentication
+│       ├── cart/            # Session-based shopping cart
+│       ├── coupons/         # Discount codes
+│       ├── ecommerce/       # Project settings, Celery config
+│       ├── orders/          # Order management + tasks
+│       ├── payment/         # Stripe Checkout + webhook
+│       └── shop/            # Products, categories
+├── docker/
+│   ├── nginx/default.conf   # Reverse proxy config
+│   └── entrypoint.sh        # Wait for DB, migrate, collectstatic
+├── docker-compose.yml       # Full stack (Postgres, Redis, RabbitMQ, etc.)
+├── Dockerfile               # App image with WeasyPrint deps
+├── Makefile                 # Common commands
+└── .env.example             # Environment template
+```
+
+## Django Apps
+
+| App | Responsibility |
+|-----|----------------|
+| **shop** | Products, categories, catalog views |
+| **cart** | Session-based cart (no DB models) |
+| **orders** | Order creation, management, PDF invoices |
+| **payment** | Stripe Checkout sessions, webhook handling |
+| **coupons** | Discount codes with percentage discounts |
+| **accounts** | User authentication (registration, login) |
+
+## Data Models
+
+- **Category** → **Product** (FK)
+- **Order** → **OrderItem** (FK) → **Product** (FK)
+- **Order** ← **Coupon** (FK, optional)
+- **Cart** is session-based (no DB models)
+
+## Testing
+
+```bash
+# With Docker Compose (requires stack running)
+make up-d
+make test
+
+# Local (venv with deps)
+cd be/ecommerce
+SECRET_KEY=... python manage.py test orders.tests payment.tests coupons.tests accounts.tests shop.tests -v2
+```
+
+Tests target: checkout, Stripe webhook (signed payloads), coupon edge cases.
+
+## Celery Workers
+
+- **celery-worker**: Background jobs (emails, PDF generation)
+- **celery-beat**: Periodic tasks (not configured by default)
+- **Flower**: Monitoring at :5555
+
+Healthcheck: `celery -A ecommerce inspect ping`
+
+## Stripe Integration
+
+- **Checkout Session**: Created on order placement
+- **Webhook**: `/payment/webhook/` handles `checkout.session.completed`
+- **Test keys**: Set `STRIPE_*` in `.env` for local development
+- **Stripe CLI**: Use for local webhook forwarding
+
+## PDF Invoices (WeasyPrint)
+
+- Stylesheet: `shop/static/css/pdf.css`
+- Resolved via `ecommerce.pdf_stylesheet.pdf_invoice_css_path()`
+- Uses `STATIC_ROOT` after `collectstatic`, falls back to staticfiles finders
+- CI verifies stylesheet exists
+
+## Environment Variables
+
+Key variables (see `.env.example`):
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SECRET_KEY` | Yes | Django secret (Compose requires it) |
+| `DEBUG` | No | Default: True |
+| `ALLOWED_HOSTS` | Prod | Comma-separated hosts |
+| `POSTGRES_*` | No | Defaults to ecommerce/ecommerce/ecommerce |
+| `STRIPE_*` | Prod | Payment keys |
+| `DJANGO_BEHIND_PROXY` | Proxy | Trust X-Forwarded headers |
+| `CSRF_TRUSTED_ORIGINS` | Prod | HTTPS origins for CSRF |
+| `SECURE_SSL_REDIRECT` | Prod | HTTPS redirect |
+| `REDIS_AOF` | No | yes/no for Redis persistence |
+
+## Production Deployment
+
+1. Set `DEBUG=False` and configure `ALLOWED_HOSTS`
+2. Use strong `SECRET_KEY`, `POSTGRES_PASSWORD`
+3. Set live `STRIPE_*` keys and `STRIPE_WEBHOOK_SECRET`
+4. Configure real email backend
+5. Terminate TLS at nginx (use `reverse-proxy` profile)
+6. Run `make check-deploy` and fix issues
+7. See [docs/production.md](docs/production.md) for full guide
+
+## Security Notes
+
+- `SECRET_KEY` required via Compose `${SECRET_KEY:?...}`
+- `SESSION_COOKIE_SECURE` and `CSRF_COOKIE_SECURE` in production
+- `ALLOWED_HOSTS` enforced when `DEBUG=False`
+- Stripe handles PCI compliance (card data never stored)
+- Webhook signature verification implemented
+- Rate limiting not yet implemented (see roadmap)
+
+## Useful Files
+
+- `be/ecommerce/ecommerce/settings.py` — Django settings
+- `be/ecommerce/ecommerce/celery.py` — Celery config
+- `be/ecommerce/ecommerce/pdf_stylesheet.py` — PDF stylesheet resolution
+- `docker-compose.yml` — Service definitions
+- `docker/nginx/default.conf` — Nginx reverse proxy
+- `.github/workflows/ci.yml` — CI pipeline
