@@ -31,7 +31,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 - `be/requirements.txt` — Python dependencies
 - `be/ecommerce/` — Django project (`manage.py`, apps: `shop`, `cart`, `orders`, `payment`, `coupons`)
 - `Dockerfile` — app image (WeasyPrint system libs + Python)
-- `docker-compose.yml` — PostgreSQL, Redis (optional AOF volume), RabbitMQ, Gunicorn, Celery worker (healthcheck), **Flower**, optional **nginx** (`reverse-proxy` profile)
+- `docker-compose.yml` — Redis (optional AOF volume), RabbitMQ, Gunicorn, Celery worker (healthcheck), **Flower**, optional **nginx** (`reverse-proxy` profile). PostgreSQL is the **shared instance** from `~/projects/shared-services` (external network `shared-services-network`, database `ecommerce`) — start it with `cd ~/projects/shared-services && docker compose up -d postgres`
 - `docker/nginx/default.conf` — reverse-proxy headers for Gunicorn (`X-Forwarded-*`)
 - `docker/entrypoint.sh` — wait for Postgres, `migrate`, `collectstatic`
 - `.env.example` — template for `.env` (never commit real secrets)
@@ -103,7 +103,7 @@ The invoice stylesheet is **`shop/static/css/pdf.css`**. **`ecommerce.pdf_styles
 
 The **Redis** service uses a named volume **`redis_data`** and, by default (**`REDIS_AOF=yes`**), runs with **AOF** (`appendonly yes`, `appendfsync everysec`) so result-backend data survives container restarts. For a **fully ephemeral** Redis (dev only), set **`REDIS_AOF=no`** in `.env`; Redis then runs without AOF/RDB persistence—results are lost when the container is recreated.
 
-`make down-volumes` removes **`redis_data`** along with Postgres and media volumes.
+`make down-volumes` removes **`redis_data`** and the media volume. (Postgres data lives in the shared instance and is untouched.)
 
 ### Running tests (Docker Compose)
 
@@ -116,7 +116,7 @@ make up-d
 make test
 ```
 
-**`make test`** uses **`docker compose run`** so **`./be/ecommerce`** is bind-mounted into a short-lived **`web`** container (your working tree, no image rebuild). Dependencies (**`db`**, **`redis`**, **`rabbitmq`**) must already be up (**`make up-d`**). On the host (venv with deps): **`cd be/ecommerce && SECRET_KEY=… python manage.py test`** the same labels. CI runs the same suite in **`.github/workflows/ci.yml`** (`test` job).
+**`make test`** uses **`docker compose run`** so **`./be/ecommerce`** is bind-mounted into a short-lived **`web`** container (your working tree, no image rebuild). Dependencies (**`redis`**, **`rabbitmq`**) must already be up (**`make up-d`**), and the **shared PostgreSQL** must be running. On the host (venv with deps): **`cd be/ecommerce && SECRET_KEY=… python manage.py test`** the same labels. CI runs the same suite in **`.github/workflows/ci.yml`** (`test` job).
 
 ### CI / automation
 

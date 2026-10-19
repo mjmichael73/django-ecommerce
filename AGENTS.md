@@ -23,7 +23,7 @@ docker compose up -d  # or make up-d
 
 ```bash
 make env              # setup .env with SECRET_KEY
-make up-d             # start stack detached
+make up-d             # start stack detached (needs shared Postgres: cd ~/projects/shared-services && docker compose up -d postgres)
 make up-d-proxy       # start with nginx reverse proxy on :8080
 make migrate          # run migrations
 make seed             # load demo data (superuser: superadmin/password)
@@ -51,7 +51,7 @@ django-ecommerce/
 ├── docker/
 │   ├── nginx/default.conf   # Reverse proxy config
 │   └── entrypoint.sh        # Wait for DB, migrate, collectstatic
-├── docker-compose.yml       # Full stack (Postgres, Redis, RabbitMQ, etc.)
+├── docker-compose.yml       # Full stack (shared Postgres, Redis, RabbitMQ, etc.)
 ├── Dockerfile               # App image with WeasyPrint deps
 ├── Makefile                 # Common commands
 └── .env.example             # Environment template
@@ -86,6 +86,8 @@ make test
 cd be/ecommerce
 SECRET_KEY=... python manage.py test orders.tests payment.tests coupons.tests accounts.tests shop.tests -v2
 ```
+
+PostgreSQL is the **shared instance** from `~/projects/shared-services` (external network `shared-services-network`, database `ecommerce`); start it with `cd ~/projects/shared-services && docker compose up -d postgres`.
 
 Tests target: checkout, Stripe webhook (signed payloads), coupon edge cases.
 
