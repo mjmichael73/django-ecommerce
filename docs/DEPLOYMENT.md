@@ -242,8 +242,8 @@ curl https://yourdomain.com/health/
 # Database health
 docker compose exec postgres pg_isready
 
-# Redis health
-docker compose exec redis redis-cli ping
+# Redis (shared instance — not part of this Compose project)
+docker exec redis redis-cli ping
 ```
 
 ## Monitoring

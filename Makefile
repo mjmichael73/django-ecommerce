@@ -12,7 +12,7 @@ WEB := web
 COMPOSE_PARSE_ONLY_ENV = SECRET_KEY="$${SECRET_KEY:-__compose_parse_only_run_make_env_before_up__}"
 
 help: ## Show targets (all commands assume Docker Compose is running unless noted)
-	@echo "Docker development — http://localhost:8000 · RabbitMQ UI http://localhost:15672"
+	@echo "Docker development — http://localhost:8089 · RabbitMQ UI http://localhost:15672"
 	@echo "Flower: http://localhost:5555 (starts with make up-d) · Optional nginx :8080 (make up-d-proxy)"
 	@echo ""
 	@echo "Detached stack:  make up-d   (hyphen in target name — NOT \"make up -d\", that is Make debug)"
@@ -47,7 +47,7 @@ up-d-flower: up-d ## Legacy alias — Flower is included in `make up-d` now
 down: ## Stop stack (keeps volumes / database data)
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) down
 
-down-volumes: ## Stop stack and remove volumes (Postgres, media, Redis AOF data)
+down-volumes: ## Stop stack and remove volumes (media; Postgres+Redis data live in shared instance)
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) down -v
 
 logs: ## Follow logs for all services

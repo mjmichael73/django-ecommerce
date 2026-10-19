@@ -15,7 +15,7 @@ docker compose build
 docker compose up -d  # or make up-d
 ```
 
-- **App:** http://localhost:8000/
+- **App:** http://localhost:8089/
 - **RabbitMQ:** http://localhost:15672/ (guest/guest)
 - **Flower:** http://localhost:5555/
 
@@ -50,7 +50,7 @@ django-ecommerce/
 ├── docker/
 │   ├── nginx/default.conf   # Reverse proxy config
 │   └── entrypoint.sh        # Wait for DB, migrate, collectstatic
-├── docker-compose.yml       # Full stack (shared Postgres, Redis, RabbitMQ, etc.)
+├── docker-compose.yml       # Full stack (shared Postgres+Redis, RabbitMQ, etc.)
 ├── Dockerfile               # App image with WeasyPrint deps
 ├── Makefile                 # Common commands
 └── .env.example             # Environment template
@@ -127,7 +127,7 @@ Key variables (see `.env.example`):
 | `DJANGO_BEHIND_PROXY` | Proxy | Trust X-Forwarded headers |
 | `CSRF_TRUSTED_ORIGINS` | Prod | HTTPS origins for CSRF |
 | `SECURE_SSL_REDIRECT` | Prod | HTTPS redirect |
-| `REDIS_AOF` | No | yes/no for Redis persistence |
+| `REDIS_AOF` | No | Shared Redis persistence policy (managed in shared-services) |
 
 ## Production Deployment
 

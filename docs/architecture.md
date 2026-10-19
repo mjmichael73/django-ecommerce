@@ -117,7 +117,7 @@ A Django 5 demo shop with session-based cart, checkout, Stripe Checkout payments
 | celery-beat | — | Periodic task scheduler |
 | flower | 5555 | Celery monitoring |
 | postgres | 5432 | Database |
-| redis | 6379 | Cache + Celery results |
+| redis | 6379 (DB 1 for Celery results) | Cache + Celery results — **shared instance** from `~/projects/shared-services` |
 | rabbitmq | 5672 | Celery broker |
 
 ## Design Decisions

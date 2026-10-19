@@ -146,7 +146,7 @@ Use this before pointing a real domain or live Stripe keys at the app:
 | **Stripe** | Live `STRIPE_*` keys and `STRIPE_WEBHOOK_SECRET`; webhook URL uses HTTPS and matches the deployed host. |
 | **Email** | Real `EMAIL_*` / SMTP or provider backend — not the console backend. |
 | **TLS** | Terminate TLS at nginx (this repo includes a proxy profile), Traefik, or your LB; do not expose Gunicorn publicly. Prefer redirects to HTTPS at the proxy; see `SECURE_SSL_REDIRECT` in `.env.example`. |
-| **Broker / cache** | RabbitMQ and Redis are not exposed publicly; change default broker credentials if ports are reachable. Redis persistence (`REDIS_AOF`, `redis_data` volume) is on by default for the result backend. |
+| **Broker / cache** | RabbitMQ is not exposed publicly. Redis is the **shared instance** from `~/projects/shared-services`; its persistence and exposure are managed there. |
 | **Media & static** | Media volume or object storage is backed up; understand who can read/write `MEDIA_ROOT`. |
 | **Process** | Run `python manage.py check --deploy` in the target environment and fix reported issues. |
 | **Dependencies** | Pin or lock images and Python packages; plan security updates. |
@@ -160,8 +160,8 @@ curl https://yourdomain.com/health/
 # Database health
 docker compose exec postgres pg_isready
 
-# Redis health
-docker compose exec redis redis-cli ping
+# Redis (shared instance — check via plain docker exec; not part of this Compose project)
+docker exec redis redis-cli ping
 ```
 
 ## Monitoring
