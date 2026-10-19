@@ -9,7 +9,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 ## Phase 1: Security Hardening
 
 ### 1.1 Critical Security
-- [ ] Remove default Postgres credentials
+- [x] Remove default Postgres credentials
 - [ ] Add rate limiting on checkout/coupon endpoints
 - [ ] Implement CSRF token rotation
 - [ ] Add Content Security Policy headers

@@ -1,5 +1,5 @@
 # Django ecommerce — Docker-first development (run from repo root)
-.PHONY: help env build up up-d up-detached up-proxy up-d-proxy up-d-flower down logs logs-web ps \
+.PHONY: help build up up-d up-detached up-proxy up-d-proxy up-d-flower down logs logs-web ps \
 	restart-web restart-worker migrate makemigrations seed createsuperuser shell \
 	collectstatic verify-pdf-static test manage sh check-deploy flower down-volumes clean
 
@@ -8,7 +8,7 @@ WEB := web
 
 # Compose interpolates ${SECRET_KEY:?…} for every command. For targets that do not start the
 # app (`build`, `down`, logs, `ps`, `restart`, etc.), allow a parse-only placeholder when
-# SECRET_KEY is unset. Never use this for `up` — run `make env` before `make up-d`.
+# SECRET_KEY is unset. Never use this for `up` — create `.env` first (`cp .env.example .env`).
 COMPOSE_PARSE_ONLY_ENV = SECRET_KEY="$${SECRET_KEY:-__compose_parse_only_run_make_env_before_up__}"
 
 help: ## Show targets (all commands assume Docker Compose is running unless noted)
@@ -17,16 +17,13 @@ help: ## Show targets (all commands assume Docker Compose is running unless note
 	@echo ""
 	@echo "Detached stack:  make up-d   (hyphen in target name — NOT \"make up -d\", that is Make debug)"
 	@echo ""
-	@echo "First time:   make env && make build && make up-d"
+	@echo "First time:   cp .env.example .env   (fill SECRET_KEY + POSTGRES_PASSWORD), then:  make build && make up-d"
 	@echo "Then:         make migrate && make seed   (demo data + superadmin/password)"
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""
 	@grep -hE '^[a-zA-Z0-9_.-]+:.*##' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}' | sort
-
-env: ## Create .env from .env.example and ensure SECRET_KEY (required by Compose)
-	python3 scripts/bootstrap_env.py
 
 build: ## Build Compose images
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) build
@@ -97,7 +94,7 @@ test: ## Run Django tests via compose run (bind-mounts ./be/ecommerce; DB etc. m
 		-e SKIP_COLLECTSTATIC=1 \
 		-v "$(CURDIR)/be/ecommerce:/app" \
 		-v media_data:/app/media \
-		$(WEB) python manage.py test orders.tests payment.tests coupons.tests accounts.tests shop.tests -v2
+		$(WEB) python manage.py test ecommerce.tests orders.tests payment.tests coupons.tests accounts.tests shop.tests -v2
 
 manage: ## Run any manage.py command, e.g. make manage ARGS='showmigrations'
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) exec $(WEB) python manage.py $(ARGS)

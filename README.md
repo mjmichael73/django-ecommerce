@@ -34,17 +34,17 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 - `docker-compose.yml` — Redis (optional AOF volume), RabbitMQ, Gunicorn, Celery worker (healthcheck), **Flower**, optional **nginx** (`reverse-proxy` profile). PostgreSQL is the **shared instance** from `~/projects/shared-services` (external network `shared-services-network`, database `ecommerce`) — start it with `cd ~/projects/shared-services && docker compose up -d postgres`
 - `docker/nginx/default.conf` — reverse-proxy headers for Gunicorn (`X-Forwarded-*`)
 - `docker/entrypoint.sh` — wait for Postgres, `migrate`, `collectstatic`
-- `.env.example` — template for `.env` (never commit real secrets)
-- `scripts/bootstrap_env.py` — used by `make env` to create `.env` and a strong `SECRET_KEY`
+- `.env.example` — complete template of every credential/secret the system needs; copy it to `.env` (gitignored — never commit real secrets)
+- `be/ecommerce/ecommerce/db_config.py` — builds the Postgres `DATABASES` config; refuses to run without an explicit `POSTGRES_PASSWORD`
 - `ecommerce/pdf_stylesheet.py` — resolves `css/pdf.css` for WeasyPrint (`STATIC_ROOT` or staticfiles finders)
-- `.github/workflows/ci.yml` — runs `collectstatic` + stylesheet check, and **`manage.py test`** for `orders`, `payment`, `coupons`
+- `.github/workflows/ci.yml` — runs `collectstatic` + stylesheet check, and **`manage.py test`** for `ecommerce` (env/credential guards), `orders`, `payment`, `coupons`
 
 ## Docker (full stack)
 
-`SECRET_KEY` is **required**: Compose does not ship an insecure default. From the **repository root**:
+`SECRET_KEY` **and** `POSTGRES_PASSWORD` are **required**: Compose does not ship insecure defaults. From the **repository root**:
 
 ```bash
-make env              # creates .env from .env.example and generates SECRET_KEY if needed
+cp .env.example .env   # then fill SECRET_KEY + POSTGRES_PASSWORD (openssl rand -base64 48)
 docker compose build
 docker compose up
 ```
@@ -122,7 +122,7 @@ make test
 
 Export `SECRET_KEY` in the environment (or provide a `.env` file) before `docker compose` — the same `:?` rule applies. Example: `SECRET_KEY="$(openssl rand -base64 48)" docker compose up -d` for ephemeral test runs.
 
-**Compose file parsing:** Any `docker compose` command expands `${SECRET_KEY:?…}`. If `.env` has no `SECRET_KEY` yet, raw CLI calls (e.g. `docker compose build`) fail. **`make`** targets that are safe without a real secret (`build`, `down`, `logs`, `ps`, `restart`, `exec` helpers, …) set a **parse-only placeholder** for that invocation. **`make up`** / **`make up-d`** still require a real key—run **`make env`** first.
+**Compose file parsing:** Any `docker compose` command expands `${SECRET_KEY:?…}`. If `.env` has no `SECRET_KEY` yet, raw CLI calls (e.g. `docker compose build`) fail. **`make`** targets that are safe without a real secret (`build`, `down`, `logs`, `ps`, `restart`, `exec` helpers, …) set a **parse-only placeholder** for that invocation. **`make up`** / **`make up-d`** still require a real key—create `.env` first (`cp .env.example .env`).
 
 ## Production environment checklist
 
@@ -132,7 +132,7 @@ Use this before pointing a real domain or live Stripe keys at the app. Not every
 |------|--------|
 | **Secrets** | `SECRET_KEY` is long, random, unique per environment; **never** committed (`.env` is gitignored). Rotate if it ever leaked. |
 | **Django** | `DEBUG=False`. `ALLOWED_HOSTS` lists only your domain(s) (never `*`). Set `CSRF_TRUSTED_ORIGINS` for each HTTPS origin. Use `DJANGO_BEHIND_PROXY=1` behind nginx/Traefik; run `make check-deploy`. |
-| **Database** | `POSTGRES_PASSWORD` is strong and not the sample `ecommerce` value. Restrict Postgres to internal networks only. |
+| **Database** | `POSTGRES_PASSWORD` is strong — no default is shipped, and the app refuses to start a Postgres connection without one. Restrict Postgres to internal networks only. |
 | **Stripe** | Live `STRIPE_*` keys and `STRIPE_WEBHOOK_SECRET`; webhook URL uses HTTPS and matches the deployed host. |
 | **Email** | Real `EMAIL_*` / SMTP or provider backend — not the console backend. |
 | **TLS** | Terminate TLS at nginx (this repo includes a proxy profile), Traefik, or your LB; do not expose Gunicorn publicly. Prefer redirects to HTTPS at the proxy; see `SECURE_SSL_REDIRECT` in `.env.example`. |
@@ -229,7 +229,7 @@ By default `EMAIL_BACKEND` is the console backend unless you set `EMAIL_BACKEND`
 
 Proposed improvements (not implemented here; ideas for evolving the project):
 
-1. ~~**Configuration** — Tighten Compose defaults (no insecure `SECRET_KEY` in repo workflows) and add a production env checklist.~~ (Done: required `SECRET_KEY`, `make env`, checklist above.)
+1. ~~**Configuration** — Tighten Compose defaults (no insecure `SECRET_KEY` or Postgres credentials in repo workflows) and add a production env checklist.~~ (Done: required `SECRET_KEY` + `POSTGRES_PASSWORD` with no shipped defaults, `.env` from `.env.example`, checklist above.)
 2. ~~**Production readiness** — Apply the checklist; harden `ALLOWED_HOSTS`, `DEBUG`, HTTPS, reverse proxy in front of Gunicorn.~~ (Done: strict `ALLOWED_HOSTS` when `DEBUG=False`, proxy-aware TLS flags, optional nginx profile, `make check-deploy`.)
 3. ~~**Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.~~ (Done: Flower in default compose, worker `inspect ping` healthcheck; `REDIS_AOF` + `redis_data` volume.)
 4. **Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.

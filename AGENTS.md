@@ -10,7 +10,7 @@ Django 5 e-commerce demo with session-based cart, Stripe Checkout payments, coup
 
 ```bash
 # From repository root
-make env              # creates .env from .env.example and generates SECRET_KEY
+cp .env.example .env   # fill SECRET_KEY + POSTGRES_PASSWORD (gitignored)
 docker compose build
 docker compose up -d  # or make up-d
 ```
@@ -22,7 +22,6 @@ docker compose up -d  # or make up-d
 ## Key Commands
 
 ```bash
-make env              # setup .env with SECRET_KEY
 make up-d             # start stack detached (needs shared Postgres: cd ~/projects/shared-services && docker compose up -d postgres)
 make up-d-proxy       # start with nginx reverse proxy on :8080
 make migrate          # run migrations
@@ -84,7 +83,7 @@ make test
 
 # Local (venv with deps)
 cd be/ecommerce
-SECRET_KEY=... python manage.py test orders.tests payment.tests coupons.tests accounts.tests shop.tests -v2
+SECRET_KEY=... python manage.py test ecommerce.tests orders.tests payment.tests coupons.tests accounts.tests shop.tests -v2
 ```
 
 PostgreSQL is the **shared instance** from `~/projects/shared-services` (external network `shared-services-network`, database `ecommerce`); start it with `cd ~/projects/shared-services && docker compose up -d postgres`.
@@ -122,7 +121,8 @@ Key variables (see `.env.example`):
 | `SECRET_KEY` | Yes | Django secret (Compose requires it) |
 | `DEBUG` | No | Default: True |
 | `ALLOWED_HOSTS` | Prod | Comma-separated hosts |
-| `POSTGRES_*` | No | Defaults to ecommerce/ecommerce/ecommerce |
+| `POSTGRES_DB` / `POSTGRES_USER` | No | Default: ecommerce/ecommerce (shared-services instance) |
+| `POSTGRES_PASSWORD` | Yes | Required — no default; must match your Postgres container |
 | `STRIPE_*` | Prod | Payment keys |
 | `DJANGO_BEHIND_PROXY` | Proxy | Trust X-Forwarded headers |
 | `CSRF_TRUSTED_ORIGINS` | Prod | HTTPS origins for CSRF |
@@ -141,7 +141,7 @@ Key variables (see `.env.example`):
 
 ## Security Notes
 
-- `SECRET_KEY` required via Compose `${SECRET_KEY:?...}`
+- `SECRET_KEY` and `POSTGRES_PASSWORD` required via Compose `${VAR:?...}` — no default credentials in the repo
 - `SESSION_COOKIE_SECURE` and `CSRF_COOKIE_SECURE` in production
 - `ALLOWED_HOSTS` enforced when `DEBUG=False`
 - Stripe handles PCI compliance (card data never stored)

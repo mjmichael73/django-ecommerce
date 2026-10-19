@@ -66,5 +66,5 @@ jobs:
         run: pip install -r ../requirements.txt
       - name: Django tests
         run: >-
-          python manage.py test orders.tests payment.tests coupons.tests
-          accounts.tests shop.tests -v2
+          python manage.py test ecommerce.tests orders.tests payment.tests
+          coupons.tests accounts.tests shop.tests -v2
