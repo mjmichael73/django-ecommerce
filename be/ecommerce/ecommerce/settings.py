@@ -15,6 +15,8 @@ from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 
+from ecommerce.db_config import postgres_database
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -133,18 +135,10 @@ WSGI_APPLICATION = 'ecommerce.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
-POSTGRES_DB = os.environ.get('POSTGRES_DB')
-if POSTGRES_DB:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': POSTGRES_DB,
-            'USER': os.environ.get('POSTGRES_USER', 'ecommerce'),
-            'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
-            'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
-            'PORT': os.environ.get('POSTGRES_PORT', '5432'),
-        }
-    }
+# Postgres is used only when POSTGRES_DB is set. An explicit
+# POSTGRES_PASSWORD is mandatory — no default credentials (card g89b45f5).
+if os.environ.get('POSTGRES_DB'):
+    DATABASES = {'default': postgres_database(os.environ)}
 else:
     DATABASES = {
         'default': {
