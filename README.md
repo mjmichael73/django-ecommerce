@@ -101,7 +101,7 @@ The invoice stylesheet is **`shop/static/css/pdf.css`**. **`ecommerce.pdf_styles
 
 ### Redis and the Celery result backend
 
-**Redis** is the **shared instance** from `~/projects/shared-services` (container `redis` on `shared-services-network` — the same network this stack's services join for Postgres). This project uses **DB 1** for the Celery result backend (`redis://redis:6379/1`) so its keys stay separate from other projects on the shared instance; no local Redis service or volume is defined in this Compose file, and its persistence policy (AOF/RDB) is managed in `~/projects/shared-services`.
+**Redis** is the **shared instance** from `~/projects/shared-services` (container `redis` on `shared-services-network` — the same network this stack's services join for Postgres). This project uses **DB 1** for the Celery result backend (`redis://redis:6379/1`) and **DB 2** for the Django cache (rate limiting, `redis://redis:6379/2`) so its keys stay separate from other projects on the shared instance; no local Redis service or volume is defined in this Compose file, and its persistence policy (AOF/RDB) is managed in `~/projects/shared-services`.
 
 `make down-volumes` removes the media volume. (Postgres and Redis data live in the shared instance and are untouched.)
 
@@ -137,6 +137,7 @@ Use this before pointing a real domain or live Stripe keys at the app. Not every
 | **Email** | Real `EMAIL_*` / SMTP or provider backend — not the console backend. |
 | **TLS** | Terminate TLS at nginx (this repo includes a proxy profile), Traefik, or your LB; do not expose Gunicorn publicly. Prefer redirects to HTTPS at the proxy; see `SECURE_SSL_REDIRECT` in `.env.example`. |
 | **Broker / cache** | RabbitMQ and Redis are not exposed publicly by this stack; the shared Redis container lives on `shared-services-network` and its persistence policy is managed in `~/projects/shared-services`. |
+| **Rate limits** | Checkout and coupon-apply POSTs are limited per client IP (10 per hour by default — `RATE_LIMIT_CHECKOUT` / `RATE_LIMIT_COUPON`), returning 429 with `Retry-After`. Counters live in the Django cache: Redis DB 2 of the shared instance under Compose, in-process memory otherwise. |
 | **Media & static** | Media volume or object storage is backed up; understand who can read/write `MEDIA_ROOT`. |
 | **Process** | Run `python manage.py check --deploy` in the target environment and fix reported issues. |
 | **Dependencies** | Pin or lock images and Python packages; plan security updates. |
@@ -237,7 +238,7 @@ Proposed improvements (not implemented here; ideas for evolving the project):
 6. ~~**Tests** — Add pytest (or Django’s test runner) coverage for checkout, webhooks (signed events), and coupon edge cases.~~ (Done: Django `TestCase` modules; `make test` via Compose; CI job.)
 7. **Observability** — Structured logging, request IDs, and Celery task failure alerts (e.g. Sentry).
 8. **UX and catalog** — Search/faceted navigation, inventory flags, product images pipeline, and responsive polish.
-9. **Security** — Rate limiting on checkout and coupon application, CSRF/session review for payment return URLs, and periodic dependency updates.
+9. **Security** — CSRF/session review for payment return URLs, and periodic dependency updates.
 10. **Containerization** — Multi-stage image build, non-root user, and optional nginx sidecar for TLS and caching.
 
 ## Documentation

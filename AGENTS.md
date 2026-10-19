@@ -146,7 +146,7 @@ Key variables (see `.env.example`):
 - `ALLOWED_HOSTS` enforced when `DEBUG=False`
 - Stripe handles PCI compliance (card data never stored)
 - Webhook signature verification implemented
-- Rate limiting not yet implemented (see roadmap)
+- POST rate limits on checkout/coupon (429 + `Retry-After`), counters in Redis cache DB 2 of the shared instance
 
 ## Useful Files
 

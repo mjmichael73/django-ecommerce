@@ -1,11 +1,13 @@
 from django.urls import reverse
 from django.shortcuts import render, redirect
+from ecommerce.rate_limit import rate_limit
 from orders.models import OrderItem
 from orders.forms import OrderCreateForm
 from cart.utils import Cart
 from orders.tasks import order_created
 
 
+@rate_limit('checkout')
 def order_create(request):
     cart = Cart(request)
     if request.method == 'POST':

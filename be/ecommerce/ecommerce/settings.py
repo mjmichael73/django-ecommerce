@@ -147,6 +147,35 @@ else:
         }
     }
 
+# Cache — used by rate limiting (card 25ahc7hg). Compose points
+# REDIS_CACHE_URL at the shared Redis instance, DB 2 (DB 1 is the Celery
+# result backend). Without it (local runs, tests) each process keeps its own
+# LocMem cache, so no Redis is required.
+if os.environ.get('REDIS_CACHE_URL'):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': os.environ['REDIS_CACHE_URL'],
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'ecommerce',
+        }
+    }
+
+# POST rate limits per client IP as (attempts, period_seconds) —
+# see ecommerce/rate_limit.py.
+RATE_LIMIT_CHECKOUT = (10, 3600)
+RATE_LIMIT_COUPON = (10, 3600)
+
+# Accept X-Forwarded-For for rate-limit buckets only when Django really sits
+# behind a proxy that writes it — the same flag that enables
+# SECURE_PROXY_SSL_HEADER above. Untrusted clients could forge the header.
+RATE_LIMIT_TRUST_X_FORWARDED_FOR = _env_bool('DJANGO_BEHIND_PROXY', 'no')
+
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
 

@@ -155,7 +155,7 @@ LOGGING = {
 - [ ] ALLOWED_HOSTS configured
 - [ ] HTTPS enabled
 - [ ] Security headers configured
-- [ ] Rate limiting enabled
+- [x] Rate limiting enabled
 - [ ] Input validation implemented
 - [ ] Dependencies updated
 - [ ] Security scan passed
