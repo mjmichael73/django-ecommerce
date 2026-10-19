@@ -242,14 +242,14 @@ def test_checkout_flow():
         page = browser.new_page()
         
         # Browse catalog
-        page.goto('http://localhost:8000/catalog/')
+        page.goto('http://localhost:8089/catalog/')
         page.click('.product-card')
         
         # Add to cart
         page.click('button:has-text("Add to Cart")')
         
         # Go to cart
-        page.goto('http://localhost:8000/cart/')
+        page.goto('http://localhost:8089/cart/')
         assert page.locator('.cart-item').count() == 1
         
         # Checkout

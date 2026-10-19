@@ -2,32 +2,9 @@ services:
   # PostgreSQL is the shared instance from ~/projects/shared-services
   # (external network shared-services-network, database: ecommerce).
   # Bring it up first:  cd ~/projects/shared-services && docker compose up -d postgres
-  redis:
-    image: redis:7-alpine
-    environment:
-      # yes = AOF + volume (survives container restarts; good for Celery result backend).
-      # no = in-memory only (no appendonly; resets on container recreate).
-      REDIS_AOF: ${REDIS_AOF:-yes}
-    volumes:
-      - redis_data:/data
-    command:
-      - /bin/sh
-      - -c
-      - |
-        set -e
-        if [ "$$REDIS_AOF" = "no" ]; then
-          exec redis-server --save "" --appendonly no
-        else
-          exec redis-server --appendonly yes --appendfsync everysec
-        fi
-    networks:
-      - ecommerce-net
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
+  # Redis (Celery result backend) is the shared instance from ~/projects/shared-services — same
+  # external network as Postgres, no local service defined here. It hosts DB 1 for this app's
+  # Celery results; other projects use other databases.
   rabbitmq:
     image: rabbitmq:3.13.0-management-alpine
     restart: unless-stopped
@@ -51,7 +28,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - '8000:8000'
+      - '8089:8000'
     environment:
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required in .env - see .env.example}
       DEBUG: ${DEBUG:-True}
@@ -62,7 +39,7 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: '5432'
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
@@ -78,8 +55,6 @@ services:
     volumes:
       - media_data:/app/media
     depends_on:
-      redis:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     networks:
@@ -123,7 +98,7 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: '5432'
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
@@ -140,8 +115,6 @@ services:
     volumes:
       - media_data:/app/media
     depends_on:
-      redis:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       web:
@@ -169,7 +142,7 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: '5432'
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
@@ -185,8 +158,6 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       celery-worker:
         condition: service_started
     networks:
@@ -195,7 +166,6 @@ services:
 
 volumes:
   media_data:
-  redis_data:
 
 networks:
   ecommerce-net:

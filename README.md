@@ -16,7 +16,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 | Layer | Technology                                                                     |
 | ----- | ------------------------------------------------------------------------------ |
 | Web   | Django 5.0, Gunicorn + WhiteNoise in Docker; SQLite (local) or PostgreSQL (Compose) |
-| Queue | Celery 5 + RabbitMQ; Redis for Celery results (Compose)                         |
+| Queue | Celery 5 + RabbitMQ; Redis (shared instance) for Celery results            |
 | Pay   | [Stripe](https://stripe.com/)                                                 |
 | PDF   | [WeasyPrint](https://weasyprint.org/)                                         |
 | Ops   | [Flower](https://flower.readthedocs.io/) on :5555 with the default stack; optional nginx `reverse-proxy` profile |
@@ -31,7 +31,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 - `be/requirements.txt` — Python dependencies
 - `be/ecommerce/` — Django project (`manage.py`, apps: `shop`, `cart`, `orders`, `payment`, `coupons`)
 - `Dockerfile` — app image (WeasyPrint system libs + Python)
-- `docker-compose.yml` — Redis (optional AOF volume), RabbitMQ, Gunicorn, Celery worker (healthcheck), **Flower**, optional **nginx** (`reverse-proxy` profile). PostgreSQL is the **shared instance** from `~/projects/shared-services` (external network `shared-services-network`, database `ecommerce`) — start it with `cd ~/projects/shared-services && docker compose up -d postgres`
+- `docker-compose.yml` — RabbitMQ, Gunicorn, Celery worker (healthcheck), **Flower**, optional **nginx** (`reverse-proxy` profile). **PostgreSQL and Redis are the shared instances** from `~/projects/shared-services` (external network `shared-services-network`, database `ecommerce`) — start them with `cd ~/projects/shared-services && docker compose up -d postgres redis`
 - `docker/nginx/default.conf` — reverse-proxy headers for Gunicorn (`X-Forwarded-*`)
 - `docker/entrypoint.sh` — wait for Postgres, `migrate`, `collectstatic`
 - `.env.example` — complete template of every credential/secret the system needs; copy it to `.env` (gitignored — never commit real secrets)
@@ -51,7 +51,7 @@ docker compose up
 
 Use **`make up-d`** or **`make up-detached`** for a **detached** stack. Do **not** run `make up -d`: GNU Make treats `-d` as debug mode, so Compose never receives `-d`, and an empty `SECRET_KEY` in `.env` will still break `docker compose up`.
 
-- **App:** http://localhost:8000/  
+- **App:** http://localhost:8089/  
 - **RabbitMQ management:** http://localhost:15672/ (guest / guest)
 
 The `web` service runs Gunicorn; the first start runs migrations and `collectstatic`. Uploaded media is stored in the `media_data` volume. Set **`STRIPE_*`** in `.env` before taking real payments.
@@ -62,7 +62,7 @@ For the same layout you would use in production (clients → TLS/reverse proxy �
 
 ```bash
 make up-d-proxy
-# Shop via proxy: http://localhost:8080/   — still available directly: http://localhost:8000/
+# Shop via proxy: http://localhost:8080/   — still available directly: http://localhost:8089/
 ```
 
 Set **`DJANGO_BEHIND_PROXY=1`** in `.env` when traffic reaches Django through this proxy so `request.is_secure()`, redirects, and CSRF use **`X-Forwarded-Proto`** / **`X-Forwarded-Host`** correctly. For a TLS-terminated proxy in production, set **`CSRF_TRUSTED_ORIGINS`** to your **`https://…`** origins.
@@ -101,9 +101,9 @@ The invoice stylesheet is **`shop/static/css/pdf.css`**. **`ecommerce.pdf_styles
 
 ### Redis and the Celery result backend
 
-The **Redis** service uses a named volume **`redis_data`** and, by default (**`REDIS_AOF=yes`**), runs with **AOF** (`appendonly yes`, `appendfsync everysec`) so result-backend data survives container restarts. For a **fully ephemeral** Redis (dev only), set **`REDIS_AOF=no`** in `.env`; Redis then runs without AOF/RDB persistence—results are lost when the container is recreated.
+**Redis** is the **shared instance** from `~/projects/shared-services` (container `redis` on `shared-services-network` — the same network this stack's services join for Postgres). This project uses **DB 1** for the Celery result backend (`redis://redis:6379/1`) so its keys stay separate from other projects on the shared instance; no local Redis service or volume is defined in this Compose file, and its persistence policy (AOF/RDB) is managed in `~/projects/shared-services`.
 
-`make down-volumes` removes **`redis_data`** and the media volume. (Postgres data lives in the shared instance and is untouched.)
+`make down-volumes` removes the media volume. (Postgres and Redis data live in the shared instance and are untouched.)
 
 ### Running tests (Docker Compose)
 
@@ -116,7 +116,7 @@ make up-d
 make test
 ```
 
-**`make test`** uses **`docker compose run`** so **`./be/ecommerce`** is bind-mounted into a short-lived **`web`** container (your working tree, no image rebuild). Dependencies (**`redis`**, **`rabbitmq`**) must already be up (**`make up-d`**), and the **shared PostgreSQL** must be running. On the host (venv with deps): **`cd be/ecommerce && SECRET_KEY=… python manage.py test`** the same labels. CI runs the same suite in **`.github/workflows/ci.yml`** (`test` job).
+**`make test`** uses **`docker compose run`** so **`./be/ecommerce`** is bind-mounted into a short-lived **`web`** container (your working tree, no image rebuild). Dependencies (**`rabbitmq`**, plus the **shared `redis`**) must already be up (**`make up-d`**), and the **shared PostgreSQL** must be running. On the host (venv with deps): **`cd be/ecommerce && SECRET_KEY=… python manage.py test`** the same labels. CI runs the same suite in **`.github/workflows/ci.yml`** (`test` job).
 
 ### CI / automation
 
@@ -136,7 +136,7 @@ Use this before pointing a real domain or live Stripe keys at the app. Not every
 | **Stripe** | Live `STRIPE_*` keys and `STRIPE_WEBHOOK_SECRET`; webhook URL uses HTTPS and matches the deployed host. |
 | **Email** | Real `EMAIL_*` / SMTP or provider backend — not the console backend. |
 | **TLS** | Terminate TLS at nginx (this repo includes a proxy profile), Traefik, or your LB; do not expose Gunicorn publicly. Prefer redirects to HTTPS at the proxy; see `SECURE_SSL_REDIRECT` in `.env.example`. |
-| **Broker / cache** | RabbitMQ and Redis are not exposed publicly; change default broker credentials if ports are reachable. Redis persistence (`REDIS_AOF`, `redis_data` volume) is on by default for the result backend. |
+| **Broker / cache** | RabbitMQ and Redis are not exposed publicly by this stack; the shared Redis container lives on `shared-services-network` and its persistence policy is managed in `~/projects/shared-services`. |
 | **Media & static** | Media volume or object storage is backed up; understand who can read/write `MEDIA_ROOT`. |
 | **Process** | Run `python manage.py check --deploy` in the target environment and fix reported issues. |
 | **Dependencies** | Pin or lock images and Python packages; plan security updates. |
@@ -184,8 +184,8 @@ From `be/ecommerce`:
 python manage.py runserver
 ```
 
-Admin: http://127.0.0.1:8000/admin/  
-Shop: http://127.0.0.1:8000/
+Admin: http://127.0.0.1:8089/admin/  
+Shop: http://127.0.0.1:8089/
 
 ## Message broker (RabbitMQ) without full Compose
 
@@ -231,7 +231,7 @@ Proposed improvements (not implemented here; ideas for evolving the project):
 
 1. ~~**Configuration** — Tighten Compose defaults (no insecure `SECRET_KEY` or Postgres credentials in repo workflows) and add a production env checklist.~~ (Done: required `SECRET_KEY` + `POSTGRES_PASSWORD` with no shipped defaults, `.env` from `.env.example`, checklist above.)
 2. ~~**Production readiness** — Apply the checklist; harden `ALLOWED_HOSTS`, `DEBUG`, HTTPS, reverse proxy in front of Gunicorn.~~ (Done: strict `ALLOWED_HOSTS` when `DEBUG=False`, proxy-aware TLS flags, optional nginx profile, `make check-deploy`.)
-3. ~~**Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.~~ (Done: Flower in default compose, worker `inspect ping` healthcheck; `REDIS_AOF` + `redis_data` volume.)
+3. ~~**Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.~~ (Done: Flower in default compose, worker `inspect ping` healthcheck; Celery results use DB 1 of the **shared** Redis instance.)
 4. **Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.
 5. ~~**WeasyPrint + static files** — Ensure `static/css/pdf.css` is available at `STATIC_ROOT` in all environments (e.g. `collectstatic` in CI/deploy) so PDF generation does not depend on dev-only paths.~~ (Done: `ecommerce/pdf_stylesheet.py`, CI job, `make verify-pdf-static`.)
 6. ~~**Tests** — Add pytest (or Django’s test runner) coverage for checkout, webhooks (signed events), and coupon edge cases.~~ (Done: Django `TestCase` modules; `make test` via Compose; CI job.)
