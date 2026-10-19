@@ -1,10 +1,13 @@
 from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from ecommerce.rate_limit import rate_limit
 from coupons.models import Coupon
 from coupons.forms import CouponApplyForm
 
 
+# rate_limit outermost so a non-POST 405 never consumes quota.
+@rate_limit('coupon')
 @require_POST
 def coupon_apply(request):
     now = timezone.now()

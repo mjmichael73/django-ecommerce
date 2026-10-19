@@ -10,7 +10,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 
 ### 1.1 Critical Security
 - [x] Remove default Postgres credentials
-- [ ] Add rate limiting on checkout/coupon endpoints
+- [x] Add rate limiting on checkout/coupon endpoints
 - [ ] Implement CSRF token rotation
 - [ ] Add Content Security Policy headers
 

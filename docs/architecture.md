@@ -136,5 +136,5 @@ A Django 5 demo shop with session-based cart, checkout, Stripe Checkout payments
 - ✅ SECRET_KEY required via Compose `${SECRET_KEY:?...}`
 - ✅ SESSION_COOKIE_SECURE and CSRF_COOKIE_SECURE in production
 - ✅ ALLOWED_HOSTS enforced when DEBUG=False
+- ✅ Rate limiting on checkout/coupon POSTs (429 + Retry-After)
 - ⚠️ Default Postgres credentials in docker-compose.yml
-- ⚠️ No rate limiting on checkout/coupon endpoints
