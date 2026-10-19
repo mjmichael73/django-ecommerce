@@ -285,6 +285,11 @@ make test-coverage
 pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 ```
 
+> **Note:** the suite always runs on a per-process LocMem cache, never on the
+> shared Redis (DB 2) that holds the POST rate-limit counters — those survive
+> between runs and would make the suite depend on how often it was started.
+> `make test` therefore also passes an empty `REDIS_CACHE_URL`.
+
 ## Validation Checklist
 
 - [ ] Model tests for all apps

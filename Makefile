@@ -89,9 +89,12 @@ collectstatic: ## collectstatic (entrypoint usually runs this on start)
 verify-pdf-static: ## Host check: collectstatic + assert static/css/pdf.css (CI parity, needs venv)
 	cd be/ecommerce && SECRET_KEY="$${SECRET_KEY:-__local_collectstatic_check__}" python3 manage.py collectstatic --noinput && test -f static/css/pdf.css && echo OK
 
+# Tests must not read or mutate the shared Redis cache (DB 2): an empty
+# REDIS_CACHE_URL keeps the LocMem cache, so every run starts from scratch.
 test: ## Run Django tests via compose run (bind-mounts ./be/ecommerce; DB etc. must be up: make up-d)
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) run --rm \
 		-e SKIP_COLLECTSTATIC=1 \
+		-e REDIS_CACHE_URL= \
 		-v "$(CURDIR)/be/ecommerce:/app" \
 		-v media_data:/app/media \
 		$(WEB) python manage.py test ecommerce.tests orders.tests payment.tests coupons.tests accounts.tests shop.tests -v2
