@@ -53,6 +53,22 @@ def order_pdf(obj):
 order_pdf.short_description = "Invoice"
 
 
+def mark_rules_reviewed(modeladmin, request, queryset):
+    """Cheap analyst workflow (card 832hc4eg): accept the fraud flags.
+
+    Sets ``is_flagged=False`` and prefixes ``fraud_notes`` with
+    ``reviewed: `` — the score and the triggered rule names stay in the
+    audit trail; nothing else on the order is touched.
+    """
+    for order in queryset:
+        order.fraud_notes = f'reviewed: {order.fraud_notes}'[:250]
+        order.is_flagged = False
+        order.save(update_fields=['is_flagged', 'fraud_notes'])
+
+
+mark_rules_reviewed.short_description = 'Mark fraud rules reviewed'
+
+
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     raw_id_fields = ['product']
@@ -71,11 +87,13 @@ class OrderAdmin(admin.ModelAdmin):
         'city',
         'paid',
         order_payment,
+        'is_flagged',
+        'fraud_score',
         'created',
         'updated',
         order_detail,
         order_pdf,
     ]
-    list_filter = ['paid', 'created', 'updated']
+    list_filter = ['paid', 'created', 'updated', 'is_flagged']
     inlines = [OrderItemInline]
-    actions = [export_to_csv]
+    actions = [export_to_csv, mark_rules_reviewed]

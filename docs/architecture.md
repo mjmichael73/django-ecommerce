@@ -198,6 +198,33 @@ both ends of a payment are guarded without any extra persistence:
   already paid (GET and POST alike): the session id outlives the webhook, so
   a returning user never gets a second Stripe session for a paid order.
 
+### Fraud signals (card 832hc4eg)
+
+Fraud detection is **flag-only**: it never blocks, cancels, or auto-refunds
+a payment. The engine (`orders/fraud.py`) evaluates six deterministic,
+pure-ORM rules — `velocity_email` (orders sharing the billing email in a
+window), `large_total`, `bulk_quantity`, `new_account_high_value` (fresh
+account + high total), `identity_mismatch` (checkout email differs from the
+account email), and `coupon_velocity` (many orders reusing one coupon) —
+each with its own weight.
+
+It runs once per order, inside the webhook's guarded `updated == 1` payment
+transition (so Stripe replays never re-evaluate): the score (sum of fired
+weights, capped at 100), a boolean flag (`score >= FRAUD_FLAG_THRESHOLD`),
+and the comma-joined triggered rule names are persisted onto the Order row
+(`fraud_score`, `is_flagged`, `fraud_notes`) via one extra UPDATE — never
+`.save()`, so no concurrent field can be stomped. An evaluation failure is
+logged only: the order stays paid and the invoice always dispatches.
+
+Windows/thresholds (`FRAUD_WINDOW_HOURS`, `FRAUD_EMAIL_VELOCITY`,
+`FRAUD_LARGE_TOTAL`, `FRAUD_BULK_QUANTITY`, `FRAUD_NEW_ACCOUNT_*`,
+`FRAUD_COUPON_VELOCITY`, `FRAUD_FLAG_THRESHOLD`) and per-rule weights
+(`FRAUD_WEIGHT_<RULE>`) are Django settings read at call time, so
+operators and tests can tune them without code changes. Analysts review
+flags through the `mark_rules_reviewed` admin action, which clears the flag
+and prefixes the notes with `reviewed: ` (score and rule names remain as an
+audit trail).
+
 ## Design Decisions
 
 | Decision | Choice | Rationale |
