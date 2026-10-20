@@ -376,6 +376,40 @@ a:hover {
   color: var(--accent);
 }
 
+.sidebar-card li.disabled a {
+  color: var(--text-muted);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.sidebar-card__count {
+  margin-left: 0.4em;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.sidebar-card__facet-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0.75rem 0 0.4rem;
+}
+
+.facet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.facet-list li + li { margin-top: 0.2rem; }
+
+.refine__active-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 0.5rem;
+}
+
 /* Product grid */
 .product-grid {
   display: grid;

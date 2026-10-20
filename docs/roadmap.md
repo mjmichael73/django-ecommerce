@@ -36,7 +36,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 
 ### 2.2 Search & Discovery
 - [x] Add full-text search (PostgreSQL) (card bf247ef9; shop/tests/test_full_text_search.py)
-- [ ] Implement faceted navigation
+- [x] Implement faceted navigation (card 3g83heaa; `shop/tests/test_facets.py`)
 - [ ] Add product recommendations
 - [ ] Create wish lists
 

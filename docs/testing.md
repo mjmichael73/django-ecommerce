@@ -440,4 +440,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Inventory tracking test module `shop.tests.test_inventory` (card 44ge8hgb)
 - [x] Product reviews test module `shop.tests.test_product_reviews` (card bd8f759h)
 - [x] Full-text search test module `shop.tests.test_full_text_search` (card bf247ef9)
+- [x] Faceted navigation test module `shop.tests.test_facets` (card 3g83heaa)
 - [ ] Test data fixtures created
