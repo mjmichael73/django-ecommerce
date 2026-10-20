@@ -37,7 +37,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 - `.env.example` — complete template of every credential/secret the system needs; copy it to `.env` (gitignored — never commit real secrets)
 - `be/ecommerce/ecommerce/db_config.py` — builds the Postgres `DATABASES` config; refuses to run without an explicit `POSTGRES_PASSWORD`
 - `ecommerce/pdf_stylesheet.py` — resolves `css/pdf.css` for WeasyPrint (`STATIC_ROOT` or staticfiles finders)
-- `.github/workflows/ci.yml` — runs `collectstatic` + stylesheet check, and **`manage.py test`** for `ecommerce` (env/credential guards), `orders`, `payment`, `coupons`
+- `.github/workflows/ci.yml` — runs `collectstatic` + stylesheet check, and **`manage.py test`** for `ecommerce` (env/credential guards), `orders`, `payment`, `coupons`; also builds the Docker image on every run and **publishes it to GHCR on `main`** (`latest` + `sha-<short>`)
 
 ## Docker (full stack)
 

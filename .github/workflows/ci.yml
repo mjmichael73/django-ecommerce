@@ -68,3 +68,44 @@ jobs:
         run: >-
           python manage.py test ecommerce.tests orders.tests payment.tests
           coupons.tests accounts.tests shop.tests -v2
+
+  # Container pipeline: the production image is BUILT on every PR and push (fast
+  # feedback, catches broken Dockerfiles immediately) and PUBLISHED to GHCR only on
+  # pushes to main. This job runs in PARALLEL with staticfiles/test on purpose — no
+  # `needs:` — so tests gate the merge via branch protection rules, not via job
+  # ordering here, and neither pipeline can mask the other's failure.
+  docker:
+    runs-on: ubuntu-latest
+    # Least privilege: checkout needs contents:read; packages:write is exercised only
+    # by the main-only publish step below.
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # Deterministic image name — without this, compose derives it from the checkout
+      # directory name (e.g. "django-ecommerce-web").
+      COMPOSE_PROJECT_NAME: ci
+      # Placeholders for compose interpolation of the ${...:?} vars in service env
+      # blocks (docker compose evaluates the whole file even for `build web`).
+      # Never real secrets: CI does not run the built image.
+      SECRET_KEY: ci-build-placeholder-not-for-production
+      POSTGRES_PASSWORD: ci-build-placeholder-not-for-production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compose file sanity check
+        run: docker compose config --quiet
+
+      - name: Build production image (always)
+        run: docker compose build web
+
+      - name: Publish image to GHCR (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash   # ${GITHUB_SHA::7} substring syntax is bash-specific
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          docker tag ci-web "${IMAGE}:latest"
+          docker tag ci-web "${IMAGE}:sha-${GITHUB_SHA::7}"
+          docker push "${IMAGE}:latest"
+          docker push "${IMAGE}:sha-${GITHUB_SHA::7}"
