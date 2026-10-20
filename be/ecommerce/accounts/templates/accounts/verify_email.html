@@ -23,7 +23,7 @@
       {% if user.is_authenticated %}
         <p>
           Already logged in? Your profile shows whether your email is
-          verified, and you can <a href="{% url 'accounts:resend_verification' %}">re-send the verification email</a>.
+          verified, and you can <a href="{% url 'accounts:profile' %}">re-send the verification email</a> from there.
         </p>
       {% else %}
         <p>

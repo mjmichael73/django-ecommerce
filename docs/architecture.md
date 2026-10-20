@@ -51,7 +51,7 @@ A Django 5 demo shop with session-based cart, checkout, Stripe Checkout payments
 
 | App | Responsibility |
 |-----|----------------|
-| **shop** | Products, categories, catalog views |
+| **catalog** | Products, categories, search |
 | **cart** | Session-based shopping cart |
 | **orders** | Order creation and management |
 | **payment** | Stripe Checkout integration |

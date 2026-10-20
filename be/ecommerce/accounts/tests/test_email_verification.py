@@ -162,9 +162,22 @@ class ProfileBadgeTests(TestCase):
         user = self._register_and_login()
         self.assertFalse(is_email_verified(user))
 
+        # Rendered badge: not verified, resend form present.
+        response = self.client.get(reverse(PROFILE_URL_NAME))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn('Email not verified', content)
+        self.assertIn('Resend verification email', content)
+
         secret = _extract_secret(mail.outbox[-1].body)
         self.assertEqual(verify(secret), 'ok')
         self.assertTrue(is_email_verified(user))
+
+        # Rendered badge flips to verified; resend form gone.
+        response = self.client.get(reverse(PROFILE_URL_NAME))
+        content = response.content.decode()
+        self.assertIn('Email verified', content)
+        self.assertNotIn('Resend verification email', content)
 
     def test_badge_uses_current_email_change_email_unverified_again(self):
         user = self._register_and_login(email='old@example.com')
@@ -188,6 +201,11 @@ class ProfileBadgeTests(TestCase):
         self.assertEqual(user.email, 'new@example.com')
         self.assertFalse(is_email_verified(user))
 
+        # Rendered badge flips back to not verified; resend form present.
+        content = response.content.decode()
+        self.assertIn('Email not verified', content)
+        self.assertIn('Resend verification email', content)
+
 
 class ProfileEmailChangeTests(TestCase):
     """Changing the email issues a fresh token for the new address."""
@@ -208,12 +226,14 @@ class ProfileEmailChangeTests(TestCase):
         return User.objects.get(email=email)
 
     def test_email_change_issues_new_token_and_email(self):
+        # Register but do NOT verify: an unverified token row exists for the
+        # old address.
         user = self._register_and_login(email='old@example.com')
         old_secret = _extract_secret(mail.outbox[-1].body)
-        # The old address is verified first.
-        self.assertEqual(verify(old_secret), 'ok')
-        self.assertTrue(is_email_verified(user))
+        self.assertFalse(is_email_verified(user))
 
+        # Change the email: this deletes the prior unverified row and issues a
+        # fresh token for the new address (one more email).
         before = _email_count()
         self.client.post(
             reverse(PROFILE_URL_NAME),
@@ -223,7 +243,6 @@ class ProfileEmailChangeTests(TestCase):
                 'email': 'new@example.com',
             },
         )
-        # Exactly one more email went out for the new address.
         self.assertEqual(_email_count(), before + 1)
         user.refresh_from_db()
         self.assertEqual(user.email, 'new@example.com')
@@ -234,8 +253,10 @@ class ProfileEmailChangeTests(TestCase):
         )
         self.assertIsNone(new_token.verified_at)
 
-        # The verified row belongs to the OLD address, so the NEW address is
-        # not considered verified (the old secret is single-use / consumed).
+        # Clicking the OLD address's link must not verify the NEW address: the
+        # old row's email no longer matches the current address (and it was
+        # deleted when the email changed).
+        self.assertEqual(verify(old_secret), 'invalid')
         self.assertFalse(is_email_verified(user))
 
 
@@ -283,13 +304,18 @@ class ResendVerificationTests(TestCase):
         before = _email_count()
         before_tokens = EmailVerificationToken.objects.filter(user=user).count()
 
-        response = self.client.post(reverse(RESEND_URL_NAME))
-        self.assertRedirects(response, reverse(PROFILE_URL_NAME))
+        response = self.client.post(reverse(RESEND_URL_NAME), follow=True)
+        # Ends up on the profile page.
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.redirect_chain[0][0], reverse(PROFILE_URL_NAME))
         self.assertEqual(_email_count(), before)
         self.assertEqual(
             EmailVerificationToken.objects.filter(user=user).count(),
             before_tokens,
         )
+        # The info message is shown on the profile.
+        content = response.content.decode()
+        self.assertIn('already verified', content)
 
     @override_settings(
         EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
@@ -335,10 +361,13 @@ class MailFailureTests(TestCase):
     """A broken mail backend must not turn registration into a 500."""
 
     @patch('accounts.verification.send_mail', side_effect=Exception('SMTP down'))
+    @patch('accounts.verification.logger.warning')
     @override_settings(
         EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
     )
-    def test_registration_still_succeeds_when_mail_fails(self, _mock_send_mail):
+    def test_registration_still_succeeds_when_mail_fails(
+        self, _mock_warning, _mock_send_mail
+    ):
         response = self.client.post(
             reverse(REGISTER_URL_NAME),
             {
@@ -348,6 +377,8 @@ class MailFailureTests(TestCase):
                 'password2': 'complex-pass-phrase-99',
             },
         )
+        # A warning was logged so the failure is visible but not fatal.
+        _mock_warning.assert_called_once()
         # Registration still succeeds (redirect) despite the mail failure.
         self.assertEqual(response.status_code, 302)
         user = User.objects.get(username='mailfail')
