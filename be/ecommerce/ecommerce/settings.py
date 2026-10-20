@@ -102,6 +102,12 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Content Security Policy header on every response (card f3d54f76).
+    # Must stay outermost (position 0) so it wraps responses produced by all
+    # inner layers — SecurityMiddleware SECURE_SSL_REDIRECT 301s,
+    # WhiteNoise static responses, and CommonMiddleware APPEND_SLASH /
+    # disallowed-UA 403s all pass through it.
+    'ecommerce.csp_middleware.CSPMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -111,6 +117,47 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# -----------------------------------------------------------------------------
+# Content Security Policy (card f3d54f76)
+#
+# Single settings constant: a directive -> value-string dict. The middleware
+# (ecommerce.csp_middleware.CSPMiddleware) turns it into the
+# ``Content-Security-Policy`` header; there is no per-request parsing.
+#
+# default-src 'self' covers everything not listed explicitly.
+# - script-src 'self': the app owns no inline <script> blocks or inline event
+#   handlers (the one ``onclick`` in the admin order detail was moved to a
+#   static JS file), so 'unsafe-inline' is not needed.
+# - style-src 'self' 'unsafe-inline' https://fonts.googleapis.com: templates
+#   use inline style="" attrs (cart detail, payment canceled, admin order
+#   detail) and those are intentionally not restructured, and
+#   shop/templates/shop/base.html loads the Google Fonts stylesheet from
+#   fonts.googleapis.com (see docs/security.md survey table).
+# - font-src 'self' https://fonts.gstatic.com: fonts.gstatic.com serves the
+#   binary font files referenced by the Google Fonts stylesheet.
+# - img-src 'self': no data-URI images were found in the survey.
+# - frame-ancestors 'none', object-src 'none', base-uri 'self',
+#   form-action 'self' are defensive lockdown directives.
+# - No external domains are required for Stripe: it uses Checkout redirect
+#   (no Stripe.js / iframe).
+_CSP_SELF = "'self'"
+CSP_POLICY = {
+    "default-src": _CSP_SELF,
+    "base-uri": _CSP_SELF,
+    "form-action": _CSP_SELF,
+    "frame-ancestors": "'none'",
+    "object-src": "'none'",
+    "script-src": _CSP_SELF,
+    "style-src": f"{_CSP_SELF} 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src": f"{_CSP_SELF} https://fonts.gstatic.com",
+    "img-src": _CSP_SELF,
+}
+
+# Optional violation reporting endpoint (browser -> collector). Only appended
+# to the header when set via CSP_REPORT_URI (wired to the web service only in
+# Compose). Empty -> no report-uri directive.
+CSP_REPORT_URI = os.environ.get("CSP_REPORT_URI", "")
 
 ROOT_URLCONF = 'ecommerce.urls'
 

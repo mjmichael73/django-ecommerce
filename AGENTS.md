@@ -148,6 +148,7 @@ Key variables (see `.env.example`):
 - Webhook signature verification implemented
 - CSRF token rotation on every identity change (login, registration, logout) via `ecommerce/csrf_rotation.py`; failed logins keep the token
 - POST rate limits on checkout/coupon (429 + `Retry-After`), counters in Redis cache DB 2 of the shared instance
+- Content Security Policy headers enforced on every response via `ecommerce/csp_middleware.py` and `CSP_POLICY` in settings (card f3d54f76)
 
 ## Useful Files
 

@@ -12,7 +12,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [x] Remove default Postgres credentials
 - [x] Add rate limiting on checkout/coupon endpoints
 - [x] Implement CSRF token rotation
-- [ ] Add Content Security Policy headers
+- [x] Add Content Security Policy headers
 
 ### 1.2 Authentication
 - [ ] Add user registration/login
