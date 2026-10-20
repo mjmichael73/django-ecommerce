@@ -70,7 +70,8 @@ f3d54f76). The value is compiled from a single settings constant `CSP_POLICY`:
 ```
 default-src 'self'; base-uri 'self'; form-action 'self';
 frame-ancestors 'none'; object-src 'none'; script-src 'self';
-style-src 'self' 'unsafe-inline'; img-src 'self'
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+font-src 'self' https://fonts.gstatic.com; img-src 'self'
 ```
 
 Why each non-`'self'` source is allowed:
@@ -78,18 +79,19 @@ Why each non-`'self'` source is allowed:
 | Source | Reason (survey finding) |
 |--------|-------------------------|
 | `'unsafe-inline'` in `style-src` | Templates legitimately use inline `style=""` attributes (cart detail, payment canceled, admin order detail); these are intentionally not restructured. |
+| `https://fonts.googleapis.com` in `style-src` | `shop/templates/shop/base.html` loads the Google Fonts stylesheet from this host (intentional third-party typography used on every storefront page); whitelisting it avoids blocking the demo's typography. |
+| `https://fonts.gstatic.com` in `font-src` | `fonts.gstatic.com` serves the binary font files referenced by the Google Fonts stylesheet above. |
 | `'unsafe-inline'` NOT in `script-src` | The app owns no inline `<script>` blocks. The single inline handler (`onclick="window.print()"` in the admin order detail) was moved to `shop/static/js/admin-order-print.js`, so `script-src` stays `'self'`. |
 | `img-src 'self'` (no `data:`) | No data-URI images were found; product/placeholder images load from static/media (same origin). |
 
-No external domains are required: Stripe uses Checkout redirect (no Stripe.js
-or iframe). A Google Fonts stylesheet is referenced from
-`shop/templates/shop/base.html` but is deliberately **not** whitelisted so the
-policy matches the exact default above; fonts fall back to `system-ui`.
+No external domains are required for Stripe: it uses Checkout redirect (no Stripe.js or iframe).
 
 Optional reporting: set `CSP_REPORT_URI` (Compose: web service only) to append
 a `report-uri` directive for browser→collector violation reports (see
 `.env.example`). The header applies to all responses equally, including 429 /
-plain ones.
+plain ones — `ecommerce.csp_middleware.CSPMiddleware` is registered outermost
+(MIDDLEWARE position 0) so it wraps responses produced by all inner layers,
+including SecurityMiddleware `SECURE_SSL_REDIRECT` 301s.
 
 ## Security Configuration
 

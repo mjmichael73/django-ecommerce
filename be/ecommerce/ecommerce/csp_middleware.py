@@ -9,10 +9,11 @@ variable, which is only appended when set.
 There is no per-request parsing: the policy lives in one settings constant
 and the header value is rebuilt from it on each response (cheap dict -> string
 formatting, and it honours ``override_settings`` in tests). The middleware is
-registered after ``CommonMiddleware`` so it decorates responses produced by
-the rest of the stack without taking part in request resolution; it is
-independent of the other security middlewares and applies to all responses
-equally (including 429/plain ones).
+registered outermost (MIDDLEWARE position 0) so it wraps responses produced by
+all inner layers — SecurityMiddleware SECURE_SSL_REDIRECT 301s, WhiteNoise
+static responses, and CommonMiddleware APPEND_SLASH / disallowed-UA 403s all
+pass through it — and applies to all responses equally (including 429/plain
+ones).
 """
 from django.conf import settings
 

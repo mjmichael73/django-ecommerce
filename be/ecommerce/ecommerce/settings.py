@@ -102,15 +102,16 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Content Security Policy header on every response (card f3d54f76).
+    # Must stay outermost (position 0) so it wraps responses produced by all
+    # inner layers — SecurityMiddleware SECURE_SSL_REDIRECT 301s,
+    # WhiteNoise static responses, and CommonMiddleware APPEND_SLASH /
+    # disallowed-UA 403s all pass through it.
+    'ecommerce.csp_middleware.CSPMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # Content Security Policy header on every response (card f3d54f76).
-    # Registered after CommonMiddleware so it decorates responses produced by
-    # the rest of the stack; it is independent of the other security
-    # middlewares and applies to all responses equally.
-    'ecommerce.csp_middleware.CSPMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -128,12 +129,18 @@ MIDDLEWARE = [
 # - script-src 'self': the app owns no inline <script> blocks or inline event
 #   handlers (the one ``onclick`` in the admin order detail was moved to a
 #   static JS file), so 'unsafe-inline' is not needed.
-# - style-src 'self' 'unsafe-inline': templates use inline style="" attrs
-#   (cart detail, payment canceled, admin order detail) and those are not
-#   restructured (see docs/security.md).
+# - style-src 'self' 'unsafe-inline' https://fonts.googleapis.com: templates
+#   use inline style="" attrs (cart detail, payment canceled, admin order
+#   detail) and those are intentionally not restructured, and
+#   shop/templates/shop/base.html loads the Google Fonts stylesheet from
+#   fonts.googleapis.com (see docs/security.md survey table).
+# - font-src 'self' https://fonts.gstatic.com: fonts.gstatic.com serves the
+#   binary font files referenced by the Google Fonts stylesheet.
 # - img-src 'self': no data-URI images were found in the survey.
 # - frame-ancestors 'none', object-src 'none', base-uri 'self',
 #   form-action 'self' are defensive lockdown directives.
+# - No external domains are required for Stripe: it uses Checkout redirect
+#   (no Stripe.js / iframe).
 _CSP_SELF = "'self'"
 CSP_POLICY = {
     "default-src": _CSP_SELF,
@@ -142,7 +149,8 @@ CSP_POLICY = {
     "frame-ancestors": "'none'",
     "object-src": "'none'",
     "script-src": _CSP_SELF,
-    "style-src": f"{_CSP_SELF} 'unsafe-inline'",
+    "style-src": f"{_CSP_SELF} 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src": f"{_CSP_SELF} https://fonts.gstatic.com",
     "img-src": _CSP_SELF,
 }
 

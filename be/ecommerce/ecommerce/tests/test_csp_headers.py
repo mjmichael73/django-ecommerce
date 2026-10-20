@@ -24,7 +24,8 @@ EXPECTED_POLICY = (
     "frame-ancestors 'none'; "
     "object-src 'none'; "
     "script-src 'self'; "
-    "style-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self'"
 )
 
@@ -86,7 +87,8 @@ class CSPPolicySettingsTests(SimpleTestCase):
                 "frame-ancestors": "'none'",
                 "object-src": "'none'",
                 "script-src": "'self'",
-                "style-src": "'self' 'unsafe-inline'",
+                "style-src": "'self' 'unsafe-inline' https://fonts.googleapis.com",
+                "font-src": "'self' https://fonts.gstatic.com",
                 "img-src": "'self'",
             },
         )
@@ -117,4 +119,17 @@ class CSPClientIntegrationTests(TestCase):
         self.client.post(url, {'code': 'DOES-NOT-EXIST'})  # consumes the single allowance
         response = self.client.post(url, {'code': 'DOES-NOT-EXIST'})
         self.assertEqual(response.status_code, 429)
+        self.assertEqual(response['Content-Security-Policy'], EXPECTED_POLICY)
+
+    @override_settings(SECURE_SSL_REDIRECT=True)
+    def test_secure_ssl_redirect_301_carries_csp_header(self):
+        """Outer middleware wraps even the SecurityMiddleware 301 redirect.
+
+        SECURE_SSL_REDIRECT=True makes SecurityMiddleware turn plain-HTTP
+        requests into 301s to https. With CSPMiddleware outermost (position 0)
+        that 301 still carries the CSP header — asserting on the 301 itself,
+        not fighting the test client's redirect handling.
+        """
+        response = self.client.get('/', secure=False)
+        self.assertEqual(response.status_code, 301)
         self.assertEqual(response['Content-Security-Policy'], EXPECTED_POLICY)
