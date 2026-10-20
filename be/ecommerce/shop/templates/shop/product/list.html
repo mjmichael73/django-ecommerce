@@ -9,9 +9,7 @@
     <p class="page-head__crumb">Browse the collection</p>
 </div>
 <form class="catalog-search" method="get" action="{{ request.get_full_path }}" role="search">
-    <label class="visually-hidden" for="catalog-search-input">Search products</label>
     <input type="search"
-           id="catalog-search-input"
            class="catalog-search__input"
            name="q"
            value="{{ query|default:'' }}"

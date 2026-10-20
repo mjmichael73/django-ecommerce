@@ -237,7 +237,9 @@ optimization if the catalog grows. Search is a read-only GET over public
 catalog data, so it is not rate-limited (unlike checkout/coupon/review
 POSTs). On non-PostgreSQL backends (CI runs SQLite) the same view degrades
 to an `icontains` OR over `name`/`description` — same surface, no stemming
-or ranking.
+or ranking. The fallback also ORs terms where the Postgres plain parser
+ANDs lexemes, so multi-word queries can match more rows on SQLite than on
+Postgres; CI-only scaffolding, not a product surface.
 
 ## Authentication
 
