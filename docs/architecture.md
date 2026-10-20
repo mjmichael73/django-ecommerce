@@ -215,6 +215,32 @@ resubmission form. Reviews are moderated standalone in the admin (no inline
 on products) with approve/unapprove bulk actions; editing/deleting own
 reviews is out of scope for this card.
 
+### Full-text search (card bf247ef9)
+
+The catalog list page (`/products/`, category pages) accepts a `?q=` GET
+parameter. On PostgreSQL the search is native full-text with **on-the-fly
+vectors**: `SearchVector('name', weight='A') + SearchVector('description',
+weight='B')` is computed per query — there is no persisted
+`SearchVectorField`, no trigger, no migration, and no DB extension
+prerequisite. Queries use a plain `SearchQuery` with config `'english'`
+(stemming), so websearch operators (`-exclude`, OR, quoted phrases) are
+literal text, not syntax — a documented non-goal. Results are filtered by
+the vector match and ordered `SearchRank` descending (name matches outrank
+description-only matches), ties broken by `name`; the `available=True` and
+category filters compose with the search.
+
+Why no persisted column yet: with the current catalog size, computing the
+tsvector per query is cheap and keeps the feature migration-free; the
+scaling path (a trigger-maintained `Product.search_vector` tsvector column
+plus a GIN index, updated on write) is deliberately left as a future
+optimization if the catalog grows. Search is a read-only GET over public
+catalog data, so it is not rate-limited (unlike checkout/coupon/review
+POSTs). On non-PostgreSQL backends (CI runs SQLite) the same view degrades
+to an `icontains` OR over `name`/`description` — same surface, no stemming
+or ranking. The fallback also ORs terms where the Postgres plain parser
+ANDs lexemes, so multi-word queries can match more rows on SQLite than on
+Postgres; CI-only scaffolding, not a product surface.
+
 ## Authentication
 
 ### Email verification (card d7ac2957)

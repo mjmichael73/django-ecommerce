@@ -1,11 +1,18 @@
 from django.shortcuts import render, get_object_or_404
 from shop.models import Category, Product
+from shop.search import search_products
 
 
 def product_list(request, category_slug=None):
     category = None
     categories = Category.objects.all()
     products = Product.objects.filter(available=True)
+    # Full-text search (card bf247ef9): ?q= filters the catalog, ranked
+    # best-match first on PostgreSQL; empty/whitespace/missing q shows the
+    # plain listing.
+    query = request.GET.get('q', '').strip()
+    if query:
+        products = search_products(products, query)
     if category_slug:
         category = get_object_or_404(Category, slug=category_slug)
         products = products.filter(category=category)
@@ -15,6 +22,7 @@ def product_list(request, category_slug=None):
         {
             'category': category,
             'categories': categories,
-            'products': products
+            'products': products,
+            'query': query,
         }
     )
