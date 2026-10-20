@@ -98,6 +98,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    # Required by the Product.search_vector tsvector column and the
+    # django.contrib.postgres search lookups (card bf247ef9). Importing the
+    # app is harmless on the SQLite fallback backend; only the FTS *queries*
+    # are Postgres-only.
+    'django.contrib.postgres',
+
     'shop.apps.ShopConfig',
     'cart.apps.CartConfig',
     'orders.apps.OrdersConfig',

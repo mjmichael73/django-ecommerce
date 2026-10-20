@@ -8,6 +8,22 @@
     <h1 class="page-head__title">{% if category %}{{ category.name }}{% else %}All products{% endif %}</h1>
     <p class="page-head__crumb">Browse the collection</p>
 </div>
+<form class="catalog-search" method="get" action="{% url 'shop:product_list' %}" role="search">
+    <label class="visually-hidden" for="catalog-search-input">Search products</label>
+    <input type="search"
+           id="catalog-search-input"
+           class="catalog-search__input"
+           name="q"
+           value="{{ query|default:'' }}"
+           placeholder="Search products…"
+           aria-label="Search products">
+    <button type="submit" class="catalog-search__button">Search</button>
+</form>
+{% if query %}
+<p class="catalog-search__summary" role="status">
+    {% if products %}{{ products|length }} result{{ products|length|pluralize }} for “{{ query }}”{% else %}No products match “{{ query }}”{% endif %}
+</p>
+{% endif %}
 <div class="catalog-layout">
     <aside class="sidebar-card" aria-label="Categories">
         <h3>Categories</h3>
@@ -36,7 +52,7 @@
             </a>
         </article>
         {% empty %}
-        <p class="page-head__crumb">No products in this category yet.</p>
+        <p class="page-head__crumb">{% if query %}Try a different search term.{% else %}No products in this category yet.{% endif %}</p>
         {% endfor %}
     </div>
 </div>
