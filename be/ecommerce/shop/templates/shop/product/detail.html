@@ -40,4 +40,44 @@
         </div>
     </div>
 </article>
+<section class="product-reviews">
+    <h2>Reviews</h2>
+    {% with rating=product.average_rating count=product.review_count %}
+    <p class="product-reviews__summary">
+        {% if count %}★ {{ rating|floatformat:1 }} · {{ count }} review{{ count|pluralize }}{% else %}No reviews yet{% endif %}
+    </p>
+    {% endwith %}
+    {% for review in product.reviews.all %}
+    <article class="product-reviews__item">
+        <h3>{{ review.title }}</h3>
+        <p class="product-reviews__stars" aria-label="{{ review.rating }} out of 5">
+            {% for star in "12345" %}{% if star|add:"0" <= review.rating %}★{% else %}·{% endif %}{% endfor %}
+        </p>
+        <p class="product-reviews__body">{{ review.body }}</p>
+        <p class="product-reviews__meta">by {{ review.user.username }} on {{ review.created|date:"F j, Y" }}</p>
+    </article>
+    {% empty %}
+    <p class="product-reviews__empty">Be the first to review this product.</p>
+    {% endfor %}
+    {% if user.is_authenticated %}
+        {% if user_review %}
+        <p class="product-reviews__note">You reviewed this product.</p>
+        {% else %}
+        <form action="{% url 'shop:product_reviews' product.id product.slug %}" method="post" class="product-reviews__form">
+            {% csrf_token %}
+            <div class="product-detail__form">
+                {{ review_form.rating.label_tag }}
+                {{ review_form.rating }}
+                {{ review_form.title.label_tag }}
+                {{ review_form.title }}
+                {{ review_form.body.label_tag }}
+                {{ review_form.body }}
+                <input type="submit" value="Post review">
+            </div>
+        </form>
+        {% endif %}
+    {% else %}
+    <p class="product-reviews__login"><a href="{% url 'accounts:login' %}?next={{ request.get_full_path|urlencode }}">Log in to review this product</a></p>
+    {% endif %}
+</section>
 {% endblock %}

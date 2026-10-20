@@ -269,6 +269,22 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
     shop.tests.test_inventory -v2
 ```
 
+### Product reviews tests (card bd8f759h)
+
+```python
+# shop/tests/test_product_reviews.py — one review per user per product
+# (DB unique constraint), user FK on to PROTECT; rating validated 1-5 at
+# the model; POST-only redirect view with success / already-reviewed /
+# invalid-input messages (no dedicated template, the detail page is the
+# review surface); detail-page summary chip + list + form vs. log-in link
+# (reviewer sees own review, no resubmission form); `review` rate-limit
+# scope (429 at the window edge, GETs never consume quota); admin
+# approve/unapprove actions flip rows and message the admin.
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
+    -v "$PWD/be/ecommerce:/app" web python manage.py test \
+    shop.tests.test_product_reviews -v2
+```
+
 ## Integration Tests
 
 ### Full Flow Tests
@@ -413,4 +429,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Product media test module `shop.tests.test_product_media` (card ga4e3hg5)
 - [x] Product variant test module `shop.tests.test_product_variants` (card g99ha567)
 - [x] Inventory tracking test module `shop.tests.test_inventory` (card 44ge8hgb)
+- [x] Product reviews test module `shop.tests.test_product_reviews` (card bd8f759h)
 - [ ] Test data fixtures created

@@ -48,3 +48,17 @@ class Product(models.Model):
 
     def get_absolute_url(self):
         return reverse('shop:product_detail', args=[self.id, self.slug])
+
+    def average_rating(self):
+        """Mean rating of approved reviews, or None when there are none yet.
+
+        Unapproved reviews (``approved=False``) are excluded so moderation
+        can hide a review from the aggregate without touching the row.
+        """
+        return self.reviews.exclude(approved=False).aggregate(
+            rating=models.Avg('rating')
+        )['rating']
+
+    def review_count(self):
+        """Number of approved reviews (an int, 0 when there are none)."""
+        return self.reviews.exclude(approved=False).count()
