@@ -144,6 +144,30 @@ verification stays off, `ACCOUNT_EMAIL_VERIFICATION = 'none'`).
   new address.
 - The profile badge shows whether the current email is verified.
 
+### Password reset (card 9ee2accb)
+
+Password reset uses Django's built-in views and default reset email — no
+custom model, no migration, and independent of the email-verification flow
+above. The reset email goes out from `DEFAULT_FROM_EMAIL`.
+
+- `GET/POST /accounts/password-reset/` (`accounts:password_reset`) renders
+  the email form and sends the reset link. The POST is rate-limited per
+  client IP via the `password_reset` scope (`RATE_LIMIT_PASSWORD_RESET`,
+  default `(5, 3600)`); GETs are never limited.
+- `GET /accounts/password-reset/done/` (`accounts:password_reset_done`)
+  always answers "if an account exists for that address, a reset link has
+  been sent", so unknown addresses are indistinguishable from known ones.
+- `GET/POST /accounts/reset/<uidb64>/<token>/`
+  (`accounts:password_reset_confirm`) checks the token and sets the new
+  password; `post_reset_login = False`, so the user logs in separately.
+  Invalid/expired links render the same panel with an explanatory message.
+- `GET /accounts/reset/done/` (`accounts:password_reset_complete`)
+  confirms the change and links back to `accounts:login`.
+- The default reset email reverses the *bare* name
+  `password_reset_confirm`, so `ecommerce/urls.py` keeps an unnamespaced
+  alias for that name (same path and view as the namespaced route above).
+- The login page links to the flow ("Forgot your password?").
+
 ### Environment
 
 | Variable | Default | Description |

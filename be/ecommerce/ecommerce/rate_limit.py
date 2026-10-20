@@ -44,6 +44,7 @@ CODE_DEFAULTS = {
     'checkout': (10, 3600),
     'coupon': (10, 3600),
     'email_verify': (5, 3600),
+    'password_reset': (5, 3600),
 }
 
 TOO_MANY_REQUESTS_BODY = 'Too many requests. Please try again later.'

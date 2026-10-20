@@ -272,6 +272,9 @@ make test
 # Run the email-verification test module (card d7ac2957)
 docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test accounts.tests.test_email_verification -v2
 
+# Run the password-reset test module (card 9ee2accb)
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test accounts.tests.test_password_reset -v2
+
 # Run unit tests
 make test-unit
 

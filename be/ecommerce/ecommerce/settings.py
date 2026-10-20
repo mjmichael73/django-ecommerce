@@ -249,6 +249,7 @@ TEST_RUNNER = 'ecommerce.test_runner.LocMemCacheTestRunner'
 RATE_LIMIT_CHECKOUT = (10, 3600)
 RATE_LIMIT_COUPON = (10, 3600)
 RATE_LIMIT_EMAIL_VERIFY = (5, 3600)
+RATE_LIMIT_PASSWORD_RESET = (5, 3600)
 
 # Accept X-Forwarded-For for rate-limit buckets only when Django really sits
 # behind a proxy that writes it — the same flag that enables
