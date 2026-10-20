@@ -18,3 +18,4 @@ Ruling: Treat the shared Redis/8089 prerequisite as complete because its commit 
 
 Task 1: minor (deferred): remove unused RequestFactory import and normalize the pre-existing coupon quote in the cart template; neither blocks the approved AJAX card.
 Task 1: complete (commits b9a16d2..355d359, review clean)
+Task 2: complete (commits fa0122a..f5d08f1, review clean)
