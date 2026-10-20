@@ -10,6 +10,15 @@
 <div class="auth-stack">
   <div class="order-form-panel auth-panel">
     <p class="auth-panel__meta">Signed in as <strong>{{ user.username }}</strong></p>
+    {% if email_verified %}
+    <p class="auth-panel__meta">Email verified</p>
+    {% else %}
+    <p class="auth-panel__meta">Email not verified</p>
+    <form method="post" action="{% url 'accounts:resend_verification' %}">
+      {% csrf_token %}
+      <button type="submit">Resend verification email</button>
+    </form>
+    {% endif %}
     <form method="post" class="order-form">
       {% csrf_token %}
       {{ form.as_p }}

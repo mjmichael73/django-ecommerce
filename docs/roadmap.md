@@ -15,9 +15,9 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [x] Add Content Security Policy headers
 
 ### 1.2 Authentication
-- [ ] Add user registration/login
+- [x] Add user registration/login
 - [x] Implement social authentication
-- [ ] Add email verification
+- [x] Add email verification
 - [ ] Implement password reset
 
 ### 1.3 Payment Security

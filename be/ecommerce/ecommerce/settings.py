@@ -148,7 +148,9 @@ if _social_google:
     SOCIALACCOUNT_LOGIN_ON_GET = True
     AUTHENTICATION_BACKENDS = _social_google.auth_backends
     # Social signups must not be blocked pending email verification in this
-    # card. Card d7ac2957 (email verification) will revisit.
+    # card. Card d7ac2957 (email verification): local registrations are verified
+    # at the app level (accounts.verification); allauth rows are only consulted
+    # for the profile badge via is_email_verified().
     ACCOUNT_EMAIL_VERIFICATION = 'none'
 
 # -----------------------------------------------------------------------------
@@ -246,6 +248,7 @@ TEST_RUNNER = 'ecommerce.test_runner.LocMemCacheTestRunner'
 # see ecommerce/rate_limit.py.
 RATE_LIMIT_CHECKOUT = (10, 3600)
 RATE_LIMIT_COUPON = (10, 3600)
+RATE_LIMIT_EMAIL_VERIFY = (5, 3600)
 
 # Accept X-Forwarded-For for rate-limit buckets only when Django really sits
 # behind a proxy that writes it — the same flag that enables
@@ -314,6 +317,11 @@ EMAIL_BACKEND = os.environ.get(
     'EMAIL_BACKEND',
     'django.core.mail.backends.console.EmailBackend',
 )
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@ecommerce.com')
+
+# Token time-to-live for email verification links (72h). The raw secret lives
+# only in the emailed URL; the DB stores sha256(secret) at rest.
+EMAIL_VERIFICATION_TOKEN_TTL = 60 * 60 * 72
 
 STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')

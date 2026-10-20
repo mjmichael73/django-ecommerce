@@ -51,11 +51,12 @@ A Django 5 demo shop with session-based cart, checkout, Stripe Checkout payments
 
 | App | Responsibility |
 |-----|----------------|
-| **catalog** | Products, categories, search |
+| **shop** | Products, categories, catalog views |
 | **cart** | Session-based shopping cart |
 | **orders** | Order creation and management |
 | **payment** | Stripe Checkout integration |
 | **coupons** | Discount codes and promotions |
+| **accounts** | User authentication, registration, login, profile, email verification |
 
 ## Data Model
 
@@ -119,6 +120,37 @@ A Django 5 demo shop with session-based cart, checkout, Stripe Checkout payments
 | postgres | 5432 | Database |
 | redis | 6379 (DB 1 for Celery results) | Cache + Celery results — **shared instance** from `~/projects/shared-services` |
 | rabbitmq | 5672 | Celery broker |
+
+## Authentication
+
+### Email verification (card d7ac2957)
+
+Local registrations are verified at the app level (django-allauth's own
+verification stays off, `ACCOUNT_EMAIL_VERIFICATION = 'none'`).
+
+- `EmailVerificationToken` model (`accounts.models`): one row per link, the
+  raw secret is never stored — only `sha256(secret)` hex (`token_hash`),
+  with a 72h TTL (`EMAIL_VERIFICATION_TOKEN_TTL`).
+- Registration issues a token and sends a plain-text verification email
+  (subject "Confirm your email address", from `DEFAULT_FROM_EMAIL`) whose
+  body contains the absolute verification URL. A broken mail backend is
+  caught and logged — it never turns registration into a 500.
+- `GET /accounts/verify-email/<secret>/` classifies the link `ok` /
+  `invalid` / `expired`, marks it single-use (`verified_at`), and is
+  informational only (does not gate login, shopping, or checkout).
+- `POST /accounts/resend-verification/` (login-required, rate-limited via
+  the `email_verify` scope) re-sends the link unless the email is already
+  verified. Changing the email on the profile issues a fresh token for the
+  new address.
+- The profile badge shows whether the current email is verified.
+
+### Environment
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEFAULT_FROM_EMAIL` | `no-reply@ecommerce.com` | From address for outgoing email, including verification emails. |
+| `EMAIL_BACKEND` | `django.core.mail.backends.console.EmailBackend` | Email backend (console in dev/docker; locmem under tests). |
+| `EMAIL_VERIFICATION_TOKEN_TTL` | `60 * 60 * 72` (72h) | Time-to-live for verification tokens. |
 
 ## Design Decisions
 
