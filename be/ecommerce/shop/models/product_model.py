@@ -1,5 +1,4 @@
 from django.db import models
-from django.contrib.postgres.search import SearchVectorField
 from shop.models import Category
 from django.urls import reverse
 
@@ -26,10 +25,6 @@ class Product(models.Model):
     )
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    # PostgreSQL tsvector maintained by the trigger in migration 0005 —
-    # never written by application code (card bf247ef9). On the SQLite
-    # fallback backend the column is a plain text field and unused.
-    search_vector = SearchVectorField(null=True, editable=False)
 
     class Meta:
         ordering = ['name']

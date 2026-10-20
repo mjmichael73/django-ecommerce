@@ -385,56 +385,6 @@ a:hover {
   color: var(--accent);
 }
 
-/* Catalog search (card bf247ef9) */
-.catalog-search {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
-}
-
-.catalog-search__input {
-  flex: 1;
-  min-width: 200px;
-  font-family: inherit;
-  font-size: 0.95rem;
-  padding: 0.65rem 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.catalog-search__input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.catalog-search__button {
-  border: none;
-}
-
-.catalog-search__summary {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin: -0.5rem 0 1.25rem;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
-
 /* Product grid */
 .product-grid {
   display: grid;

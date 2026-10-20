@@ -285,6 +285,15 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
     shop.tests.test_product_reviews -v2
 ```
 
+
+### Full-text search tests (card bf247ef9)
+
+```python
+# shop/tests/test_full_text_search.py - catalog ?q= full-text search
+# Postgres-native on-the-fly SearchVector (name weight A > description weight B config 'english') with a plain SearchQuery, ranked ordering (rank desc, name asc); available=True and category filters compose; empty/whitespace/missing q = plain listing; friendly empty state; query echo and product names autoescaped. CI runs SQLite, where the same call degrades to an icontains OR - stemming/ranking tests skip there (PostgresOnlyTests).
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test shop.tests.test_full_text_search -v2
+```
+
 ## Integration Tests
 
 ### Full Flow Tests
@@ -430,4 +439,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Product variant test module `shop.tests.test_product_variants` (card g99ha567)
 - [x] Inventory tracking test module `shop.tests.test_inventory` (card 44ge8hgb)
 - [x] Product reviews test module `shop.tests.test_product_reviews` (card bd8f759h)
+- [x] Full-text search test module `shop.tests.test_full_text_search` (card bf247ef9)
 - [ ] Test data fixtures created
