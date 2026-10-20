@@ -213,6 +213,23 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
     payment.tests.test_refunds payment.tests.test_stripe_webhook -v2
 ```
 
+### Product media tests (card ga4e3hg5)
+
+```python
+# shop/tests/test_product_media.py — product image upload + media serving
+# Rendered image URLs are site-root absolute (`/media/...`) on both the list
+# page and the nested detail page `/<id>/<slug>/`; the declared
+# MEDIA_URL/STATIC_URL settings values carry a leading slash; an uploaded
+# Pillow-generated ContentFile round-trips under `products/`; a blank image
+# falls back to `/static/img/no_image.svg`; the admin change form exposes the
+# file input; and the DEBUG-only `/media/<path>` route (rebuilt via
+# override_settings(DEBUG=True), because the test runner forces DEBUG=False)
+# serves the JPEG bytes back. Uploads are written to a per-test temp
+# MEDIA_ROOT, never into the bind-mounted /app/media tree.
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
+    -v "$PWD/be/ecommerce:/app" web python manage.py test shop.tests -v2
+```
+
 ## Integration Tests
 
 ### Full Flow Tests
@@ -318,6 +335,9 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/
 # Run the refund-handling test module (card a3cg42c4)
 docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test payment.tests.test_refunds payment.tests.test_stripe_webhook -v2
 
+# Run the product media/static URL test module (card ga4e3hg5)
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test shop.tests -v2
+
 # Run unit tests
 make test-unit
 
@@ -351,4 +371,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Email verification test module `accounts.tests.test_email_verification` (card d7ac2957)
 - [x] Fraud detection test module `orders.tests.test_fraud` (card 832hc4eg)
 - [x] Refund handling test module `payment.tests.test_refunds` (card a3cg42c4)
+- [x] Product media test module `shop.tests.test_product_media` (card ga4e3hg5)
 - [ ] Test data fixtures created

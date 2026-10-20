@@ -29,7 +29,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 ## Phase 2: Features
 
 ### 2.1 Product Management
-- [ ] Add product images upload
+- [x] Add product images upload (card ga4e3hg5; uploaded images served absolute under `/media/`, see `shop/tests/test_product_media.py`)
 - [ ] Implement product variants
 - [ ] Add inventory tracking
 - [ ] Create product reviews
