@@ -31,7 +31,11 @@ class Product(models.Model):
         indexes = [
             models.Index(fields=['id', 'slug']),
             models.Index(fields=['name']),
-            models.Index(fields=['-created'])
+            models.Index(fields=['-created']),
+            # Supports category page + available filter (product_list view).
+            models.Index(fields=['category', 'available']),
+            # Supports price band filtering / facets.
+            models.Index(fields=['price']),
         ]
 
     def __str__(self):

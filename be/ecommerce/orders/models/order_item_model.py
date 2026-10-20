@@ -29,6 +29,12 @@ class OrderItem(models.Model):
         default=1
     )
 
+    class Meta:
+        # Supports looking up items for an order with product data.
+        indexes = [
+            models.Index(fields=['order', 'product']),
+        ]
+
     def __str__(self):
         return str(self.id)
 
