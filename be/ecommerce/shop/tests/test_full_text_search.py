@@ -9,6 +9,7 @@ stemming/ranking tests assert Postgres-only behavior and skip elsewhere.
 """
 from decimal import Decimal
 
+from django.core.cache import cache
 from django.db import connection
 from django.test import TestCase
 from django.urls import reverse
@@ -42,6 +43,12 @@ class SearchFixture(TestCase):
             description='Running gear not for sale.',
             price=Decimal('20.00'), available=False,
         )
+
+    def setUp(self):
+        super().setUp()
+        # Catalog caching (card 29b8eadg): clear between tests so cached
+        # listings from other fixtures don't leak across test methods.
+        cache.clear()
 
     def matching(self, query):
         base = Product.objects.filter(available=True)

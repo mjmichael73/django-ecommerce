@@ -22,6 +22,7 @@ from decimal import Decimal
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.test import TestCase, override_settings
 from django.urls import clear_url_caches, reverse
@@ -54,6 +55,7 @@ class ProductMediaTestCase(TestCase):
         self.addCleanup(self.media_override.disable)
 
         self.category = Category.objects.create(name='Home & Living', slug='home-living')
+        cache.clear()
 
     def make_product(self, name='Ceramic Pour-Over Set', slug='ceramic-pour-over-set', image=True):
         product = Product.objects.create(

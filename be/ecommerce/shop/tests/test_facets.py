@@ -16,6 +16,7 @@ Tests cover:
 """
 from decimal import Decimal
 
+from django.core.cache import cache
 from django.http import QueryDict
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -104,6 +105,12 @@ class FacetFixture(TestCase):
 
     def _all_products(self):
         return Product.objects.filter(available=True)
+
+    def setUp(self):
+        super().setUp()
+        # Catalog caching (card 29b8eadg): clear between tests so cached
+        # listings from other fixtures don't leak across test methods.
+        cache.clear()
 
 
 class PriceBandForTests(TestCase):

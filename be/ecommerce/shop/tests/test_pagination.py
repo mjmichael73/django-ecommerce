@@ -10,6 +10,7 @@ Covers:
 """
 from decimal import Decimal
 
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
@@ -33,6 +34,12 @@ class PaginationFixture(TestCase):
                 stock=5,
                 available=True,
             )
+
+    def setUp(self):
+        super().setUp()
+        # Catalog caching (card 29b8eadg): clear between tests so cached
+        # listings from other fixtures don't leak across test methods.
+        cache.clear()
 
 
 class PaginationViewTests(PaginationFixture):
