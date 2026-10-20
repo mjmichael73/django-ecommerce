@@ -451,6 +451,60 @@ a:hover {
   letter-spacing: 0.01em;
 }
 
+/* Lazy loading: blurred placeholder while the real image loads */
+.product-card__image-wrap img.lazy,
+.product-detail__media img.lazy {
+  filter: blur(20px);
+  transition: filter 0.4s ease;
+}
+
+.product-card__image-wrap img.loaded,
+.product-detail__media img.loaded {
+  filter: blur(0);
+}
+
+/* Hide noscript fallback when JS is active */
+.product-card__image-wrap noscript,
+.product-detail__media noscript {
+  display: none;
+}
+
+/* Load more button */
+.load-more-button {
+  display: block;
+  margin: 2rem auto;
+  padding: 0.65rem 1.35rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #fff;
+  background: linear-gradient(145deg, var(--accent), #2c4666);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  box-shadow: 0 4px 14px var(--accent-glow);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+
+.load-more-button:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 6px 20px var(--accent-glow);
+}
+
+.load-more-button:active {
+  transform: translateY(1px);
+}
+
+.load-more-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* Hide the traditional pagination nav when infinite scroll is active */
+#infinite-scroll-sentinel + .pagination {
+  display: none;
+}
+
 /* Product detail */
 .product-detail {
   display: grid;

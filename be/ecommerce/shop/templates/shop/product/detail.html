@@ -8,7 +8,10 @@
 <article class="product-detail">
     <div class="product-detail__media">
         {% if product.image %}
-            <img srcset="{% srcset product.srcset_urls %}" src="{{ product.thumbnail_url|default:product.image.url }}" alt="{{ product.name }}" width="600" height="600" loading="lazy" decoding="async">
+            <img class="lazy" data-src="{{ product.image.url }}" data-srcset="{% srcset product.srcset_urls %}" src="{{ product.thumbnail_url|default:product.image.url }}" alt="{{ product.name }}" width="600" height="600">
+            <noscript>
+                <img src="{{ product.thumbnail_url|default:product.image.url }}" srcset="{% srcset product.srcset_urls %}" alt="{{ product.name }}" width="600" height="600">
+            </noscript>
         {% else %}
             <img src="{% static 'img/no_image.svg' %}" alt="{{ product.name }}" width="600" height="600">
         {% endif %}
@@ -85,4 +88,7 @@
     <p class="product-reviews__login"><a href="{% url 'accounts:login' %}?next={{ request.get_full_path|urlencode }}">Log in to review this product</a></p>
     {% endif %}
 </section>
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'js/lazy-load.js' %}"></script>
 {% endblock %}

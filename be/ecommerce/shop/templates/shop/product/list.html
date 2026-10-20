@@ -93,7 +93,10 @@
             <a href="{{ product.get_absolute_url }}" class="product-card__link">
                 <div class="product-card__image-wrap">
                     {% if product.image %}
-                        <img srcset="{% srcset product.srcset_urls %}" src="{{ product.thumbnail_url }}" alt="{{ product.name }}" width="400" height="400" loading="lazy" decoding="async">
+                        <img class="lazy" data-src="{{ product.image.url }}" data-srcset="{% srcset product.srcset_urls %}" src="{{ product.thumbnail_url }}" alt="{{ product.name }}" width="400" height="400">
+                        <noscript>
+                            <img src="{{ product.thumbnail_url }}" srcset="{% srcset product.srcset_urls %}" alt="{{ product.name }}" width="400" height="400">
+                        </noscript>
                     {% else %}
                         <img src="{% static 'img/no_image.svg' %}" alt="{{ product.name }}" width="400" height="400" loading="lazy" decoding="async">
                     {% endif %}
@@ -109,6 +112,14 @@
         {% endfor %}
     </div>
     {% if page_obj.paginator.count > products_per_page %}
+    <div id="infinite-scroll-sentinel"
+         data-next-url="{% if page_obj.has_next %}?{% build_page_query request.GET page_obj.next_page_number %}{% else %}{% endif %}">
+        {% if page_obj.has_next %}
+        <button id="infinite-scroll-load-more" class="load-more-button" type="button">Load more</button>
+        {% else %}
+        <button id="infinite-scroll-load-more" class="load-more-button" type="button" style="display:none">Load more</button>
+        {% endif %}
+    </div>
     <nav class="pagination" role="navigation" aria-label="Catalog pagination">
         <ul class="pagination__list">
             {% if page_obj.has_previous %}
@@ -160,5 +171,8 @@
         </p>
     </nav>
     {% endif %}
-</div>
-{% endblock %}
+    {% endblock %}
+    {% block scripts %}
+    <script src="{% static 'js/lazy-load.js' %}"></script>
+    <script src="{% static 'js/infinite-scroll.js' %}"></script>
+    {% endblock %}
