@@ -35,6 +35,19 @@ class Order(models.Model):
     is_flagged = models.BooleanField(default=False)
     fraud_notes = models.CharField(max_length=250, blank=True)
 
+    # Refund state (card a3cg42c4) — refunds are an order lifecycle fact.
+    # Set by the analyst-initiated admin action (payment/refunds.py) and by
+    # inbound Stripe `charge.refunded` events. `refunded_amount` is in $
+    # units (same units as item.price); `refund_id` holds the last Stripe
+    # Refund object id and stays blank when Stripe reports several refunds.
+    refund_id = models.CharField(max_length=250, blank=True)
+    refunded_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+    )
+    refunded_at = models.DateTimeField(null=True, blank=True)
+
     coupon = models.ForeignKey(
         Coupon,
         related_name='orders',

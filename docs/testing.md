@@ -195,6 +195,24 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
     orders.tests.test_fraud payment.tests.test_stripe_webhook -v2
 ```
 
+### Refund Tests (card a3cg42c4)
+
+```python
+# payment/tests/test_refunds.py — analyst-initiated refund primitives
+# Guards (unpaid / no payment_intent / non-positive amount / already
+# refunded locally) refuse *before* Stripe is called; full refund (amount
+# omitted) and partial refund (cents conversion, accumulating); Stripe
+# errors (generic, CardError, unexpected) returned as (False, reason) and
+# never raised; the `issue_full_refund` admin action (success message,
+# failure reason, double-click safety); and the inbound `charge.refunded`
+# webhook branch (unknown payment_intent is a 200 no-op, several refunds
+# keep refund_id blank, checkout.session.completed still unaffected).
+# stripe.Refund.create is mocked everywhere — the suite never calls Stripe.
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
+    -v "$PWD/be/ecommerce:/app" web python manage.py test \
+    payment.tests.test_refunds payment.tests.test_stripe_webhook -v2
+```
+
 ## Integration Tests
 
 ### Full Flow Tests
@@ -297,6 +315,9 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/
 # Run the fraud-detection test module (card 832hc4eg)
 docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test orders.tests.test_fraud payment.tests.test_stripe_webhook -v2
 
+# Run the refund-handling test module (card a3cg42c4)
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test payment.tests.test_refunds payment.tests.test_stripe_webhook -v2
+
 # Run unit tests
 make test-unit
 
@@ -329,4 +350,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [ ] CI/CD pipeline configured
 - [x] Email verification test module `accounts.tests.test_email_verification` (card d7ac2957)
 - [x] Fraud detection test module `orders.tests.test_fraud` (card 832hc4eg)
+- [x] Refund handling test module `payment.tests.test_refunds` (card a3cg42c4)
 - [ ] Test data fixtures created

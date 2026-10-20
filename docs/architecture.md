@@ -225,6 +225,36 @@ flags through the `mark_rules_reviewed` admin action, which clears the flag
 and prefixes the notes with `reviewed: ` (score and rule names remain as an
 audit trail).
 
+### Refunds (card a3cg42c4)
+
+Refunds are **analyst-initiated** — nothing in the app refunds automatically
+(the fraud engine is flag-only and never refunds). The module
+`payment/refunds.py` exposes one primitive, `refund_order(order, amount=None)`,
+which returns `(True, 'ok')` or `(False, reason)` and never raises: Stripe
+errors are caught, logged and returned as a message, so a refund failure can
+never surface as a 500.
+
+- **Admin action** `issue_full_refund` on `OrderAdmin` refunds the full
+  remaining total of every selected order (one Stripe `Refund.create` per
+  order, amount omitted) and reports the reason for every skipped order.
+- **Guards**: an unpaid order or an order without a Stripe `payment_intent`
+  is *not refundable*, a non-positive partial amount is an *invalid amount*,
+  and an order that is already fully refunded locally is *already refunded* —
+  the last one is checked *before* the Stripe call, so a double-clicked admin
+  action cannot refund twice.
+- **State** lives on the order row: `refunded_amount` ($ units, the same
+  units as `item.price`), `refund_id` (last Stripe Refund object id) and
+  `refunded_at`. The fields are written with a single targeted
+  `Order.objects.filter(...).update(...)` — never `.save()` — so a concurrent
+  write to another column is never stomped. Partial refunds convert $ to
+  integer cents the same way `payment_process` does.
+- **Inbound truth**: the webhook also handles `charge.refunded` events, so a
+  refund made in the Stripe dashboard is reflected locally (the charge
+  carries the cumulative refunded sum). Such an event never issues a refund,
+  never re-dispatches the invoice and never evaluates fraud. The
+  customer-facing return/refund request flow is a **later card** (4fcgc9e) —
+  there is no customer-facing refund URL or view yet.
+
 ## Design Decisions
 
 | Decision | Choice | Rationale |
