@@ -23,7 +23,10 @@ def order_create(request):
                     product=item['product'],
                     price=item['price'],
                     quantity=item['quantity'],
-                    variant_id=item.get('variant_id'),
+                    # Use the iter-attached instance (None when the variant row
+                    # was deleted after the line was added) — never the raw
+                    # variant_id, which would be a dead FK and raise here.
+                    variant=item.get('variant'),
                 )
             cart.clear()
             order_created.delay(order.id)

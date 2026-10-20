@@ -417,6 +417,56 @@ class OrderVariantTests(ProductVariantFixture):
         self.assertIsNone(item.variant)
         self.assertEqual(item.price, Decimal('49.99'))
 
+    def test_checkout_with_deleted_variant_in_cart_stores_null_variant(self, _mock_delay):
+        # The cart line still references a variant the admin deleted: checkout
+        # must fall back to the price snapshot with a NULL variant, not 500 on
+        # a dead FK id.
+        self._fill_cart(self.red)
+        stale_key = f'{self.product.id}:{self.red.id}'
+        self.red.delete()
+        self.assertIn(stale_key, self.client.session['cart'])
+
+        response = self.client.post(reverse('orders:order_create'), CHECKOUT_PAYLOAD)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('payment:process'))
+        self.assertEqual(Order.objects.count(), 1)
+        item = OrderItem.objects.get()
+        self.assertIsNone(item.variant)
+        self.assertEqual(item.price, Decimal('49.99'))
+        self.assertEqual(item.product, self.product)
+        self.assertNotIn('cart', self.client.session)
+
+    def test_checkout_mixed_cart_keeps_remaining_valid_variant(self, _mock_delay):
+        session = self.client.session
+        session['cart'] = {
+            f'{self.product.id}:{self.red.id}': {
+                'quantity': 1,
+                'price': str(self.red.unit_price()),
+                'variant_id': self.red.id,
+                'variant_name': self.red.name,
+            },
+            f'{self.product.id}:{self.plain_variant.id}': {
+                'quantity': 2,
+                'price': str(self.plain_variant.unit_price()),
+                'variant_id': self.plain_variant.id,
+                'variant_name': self.plain_variant.name,
+            },
+        }
+        session.save()
+        self.red.delete()
+
+        response = self.client.post(reverse('orders:order_create'), CHECKOUT_PAYLOAD)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Order.objects.count(), 1)
+        self.assertEqual(OrderItem.objects.count(), 2)
+        stale_item = OrderItem.objects.get(price=Decimal('49.99'))
+        self.assertIsNone(stale_item.variant)
+        valid_item = OrderItem.objects.get(variant=self.plain_variant)
+        self.assertEqual(valid_item.price, Decimal('42.00'))
+        self.assertEqual(valid_item.quantity, 2)
+
 
 class StripeVariantLineItemTests(ProductVariantFixture):
     def _order_with_items(self, variant=None):
