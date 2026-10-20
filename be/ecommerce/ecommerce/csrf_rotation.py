@@ -30,11 +30,27 @@ def rotate_csrf_token(request):
     rotate_token(request)
 
 
-def login_with_csrf_rotation(request, user):
+def login_with_csrf_rotation(request, user, backend=None):
     """Log ``user`` in and rotate the CSRF token.
 
     The token is rotated before the session is upgraded, so a token issued
     for the anonymous session can never be reused for the authenticated one.
+
+    ``backend`` defaults to the backend that authenticated ``user`` (the
+    ``user.backend`` attribute set by ``django.contrib.auth.authenticate``),
+    falling back to Django's ``ModelBackend`` — the backend behind local
+    credentials used by directly-created users (registration, seeding).
+    django.contrib.auth.login() requires an explicit backend whenever more
+    than one backend is configured (social login, card hhde4h24), so a
+    backend argument is always resolved here.
     """
     rotate_csrf_token(request)
-    auth_login(request, user)
+    auth_login(
+        request,
+        user,
+        backend=(
+            backend
+            or getattr(user, 'backend', None)
+            or 'django.contrib.auth.backends.ModelBackend'
+        ),
+    )

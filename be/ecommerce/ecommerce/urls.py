@@ -13,5 +13,12 @@ urlpatterns = [
     path('', include('shop.urls', namespace='shop')),
 ]
 
+# Social authentication (card hhde4h24): allauth's URLs live under the same
+# /accounts/ prefix, appended AFTER the local accounts.urls include above so
+# paths it shares (/accounts/login/, /accounts/logout/) keep resolving to the
+# local views. The google_* paths it adds are new endpoints.
+if settings.SOCIAL_AUTH_GOOGLE_ENABLED:
+    urlpatterns += [path('accounts/', include('allauth.urls'))]
+
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
