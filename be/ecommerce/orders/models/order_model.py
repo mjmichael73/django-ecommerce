@@ -70,8 +70,13 @@ class Order(models.Model):
         return f'Order {self.id}'
 
     def get_total_cost(self):
+        # Compute the pre-discount total once and reuse it for the discount so
+        # a single template access (e.g. ``order.get_total_cost``) does not
+        # iterate the prefetched items collection twice. When ``items`` has
+        # been prefetched this is a zero-DB in-memory pass; without a prefetch
+        # it still avoids a redundant items query on the discount calculation.
         total_cost = self.get_total_cost_before_discount()
-        return total_cost - self.get_discount()
+        return total_cost - self.get_discount(total_cost)
 
     def get_stripe_url(self):
         if not self.stripe_id:
@@ -83,10 +88,14 @@ class Order(models.Model):
         return f'https://dashboard.stripe.com{path}payments/{self.stripe_id}'
 
     def get_total_cost_before_discount(self):
+        # Iterate ``self.items.all()`` so a prefetched ``items`` cache (added by
+        # the detail/list views) is reused instead of issuing a fresh query
+        # per item. This stays a single query when items are not prefetched.
         return sum(item.get_cost() for item in self.items.all())
 
-    def get_discount(self):
-        total_cost = self.get_total_cost_before_discount()
+    def get_discount(self, total_cost=None):
+        if total_cost is None:
+            total_cost = self.get_total_cost_before_discount()
         if self.discount:
             return total_cost * (self.discount / Decimal(100))
         return Decimal(0)
