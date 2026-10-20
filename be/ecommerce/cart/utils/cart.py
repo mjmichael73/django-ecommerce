@@ -1,6 +1,6 @@
 from decimal import Decimal
 from django.conf import settings
-from shop.models import Product
+from shop.models import Product, ProductVariant
 from coupons.models import Coupon
 
 
@@ -16,17 +16,44 @@ class Cart:
         self.cart = cart
         self.coupon_id = self.session.get('coupon_id')
 
+    @staticmethod
+    def _cart_key(product, variant=None):
+        """
+        Session key for a cart line.
+
+        Plain products keep the historical ``str(product.id)`` shape; a variant
+        line is separate and keyed ``'<product_id>:<variant_id>'``.
+        """
+        if variant is not None:
+            return f'{product.id}:{variant.id}'
+        return str(product.id)
+
     def __iter__(self):
         """
-        Iterate over the items in the cart and get the products from the database.
+        Iterate over the items in the cart and get the products (and variants)
+        from the database in batches.
         :return:
         """
-        product_ids = self.cart.keys()
-        products = Product.objects.filter(id__in=product_ids)
-        cart = self.cart.copy()
-        for product in products:
-            cart[str(product.id)]['product'] = product
-        for item in cart.values():
+        product_ids = set()
+        variant_ids = set()
+        for cart_key, item in self.cart.items():
+            product_ids.add(str(cart_key).split(':')[0])
+            variant_id = item.get('variant_id')
+            if variant_id is not None:
+                variant_ids.add(variant_id)
+        products = {str(p.id): p for p in Product.objects.filter(id__in=product_ids)}
+        variants = {v.id: v for v in ProductVariant.objects.filter(id__in=variant_ids)}
+        # Work on copies so the attached objects never leak into the session.
+        cart = {key: dict(item) for key, item in self.cart.items()}
+        for cart_key, item in cart.items():
+            product = products.get(str(cart_key).split(':')[0])
+            if product is not None:
+                item['product'] = product
+            variant_id = item.get('variant_id')
+            if variant_id is not None:
+                variant = variants.get(variant_id)
+                if variant is not None:
+                    item['variant'] = variant
             item['price'] = Decimal(item['price'])
             item['total_price'] = item['price'] * item['quantity']
             yield item
@@ -41,35 +68,45 @@ class Cart:
     def save(self):
         self.session.modified = True
 
-    def add(self, product, quantity=1, override_quantity=False):
+    def add(self, product, quantity=1, override_quantity=False, variant=None):
         """
-        Add a product to the cart or update its quantity.
+        Add a product (or one of its variants) to the cart or update its quantity.
         :param product:
         :param quantity:
         :param override_quantity:
+        :param variant:
         :return:
         """
-        product_id = str(product.id)
-        if product_id not in self.cart:
-            self.cart[product_id] = {
-                'quantity': 0,
-                'price': str(product.price)
-            }
+        cart_key = self._cart_key(product, variant)
+        if cart_key not in self.cart:
+            if variant is None:
+                self.cart[cart_key] = {
+                    'quantity': 0,
+                    'price': str(product.price)
+                }
+            else:
+                self.cart[cart_key] = {
+                    'quantity': 0,
+                    'price': str(variant.unit_price()),
+                    'variant_id': variant.id,
+                    'variant_name': variant.name,
+                }
         if override_quantity:
-            self.cart[product_id]['quantity'] = quantity
+            self.cart[cart_key]['quantity'] = quantity
         else:
-            self.cart[product_id]['quantity'] += quantity
+            self.cart[cart_key]['quantity'] += quantity
         self.save()
 
-    def remove(self, product):
+    def remove(self, product, variant=None):
         """
-        Remove a product from the cart.
+        Remove a product (or one of its variants) from the cart.
         :param product:
+        :param variant:
         :return:
         """
-        product_id = str(product.id)
-        if product_id in self.cart:
-            del self.cart[product_id]
+        cart_key = self._cart_key(product, variant)
+        if cart_key in self.cart:
+            del self.cart[cart_key]
             self.save()
 
     def get_total_price(self):

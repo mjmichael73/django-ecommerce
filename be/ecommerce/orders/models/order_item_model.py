@@ -1,6 +1,6 @@
 from django.db import models
 from orders.models import Order
-from shop.models import Product
+from shop.models import Product, ProductVariant
 
 
 class OrderItem(models.Model):
@@ -13,6 +13,13 @@ class OrderItem(models.Model):
         Product,
         related_name='order_items',
         on_delete=models.CASCADE
+    )
+    variant = models.ForeignKey(
+        ProductVariant,
+        related_name='order_items',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
     )
     price = models.DecimalField(
         max_digits=10,
