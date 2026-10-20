@@ -1,8 +1,23 @@
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, get_object_or_404
 from django.views.decorators.http import require_POST
 from shop.models import Product
 from cart.utils import Cart
+from cart.utils.ajax import cart_error_json, cart_summary_json, format_form_errors
 from cart.forms import CartAddProductForm
+
+
+def is_ajax(request):
+    """True when *request* was sent as an AJAX/HTMX call.
+
+    Detects either an ``X-Requested-With: XMLHttpRequest`` header or an
+    ``Accept`` header containing ``application/json``. Regular HTML form
+    submissions keep the original 302-redirect behaviour unchanged.
+    """
+    return (
+        request.headers.get('x-requested-with') == 'XMLHttpRequest'
+        or 'application/json' in (request.headers.get('accept') or '')
+    )
 
 
 def _resolve_variant(product, raw_variant_id):
@@ -24,7 +39,13 @@ def _resolve_variant(product, raw_variant_id):
 @require_POST
 def cart_add(request, product_id):
     cart = Cart(request)
-    product = get_object_or_404(Product, id=product_id)
+    try:
+        product = get_object_or_404(Product, id=product_id)
+    except Http404:
+        if is_ajax(request):
+            return cart_error_json('Product not found', status=404)
+        raise
+
     variants = product.variants.filter(available=True)
     variant = _resolve_variant(
         product,
@@ -46,4 +67,20 @@ def cart_add(request, product_id):
             override_quantity=cd['override'],
             variant=variant,
         )
+        if is_ajax(request):
+            body = cart_summary_json(cart)
+            body['quantity'] = cart.cart[
+                cart._cart_key(product, variant)
+            ]['quantity']
+            body['product_name'] = (
+                variant.name if variant else product.name
+            )
+            return JsonResponse(body)
+    elif is_ajax(request):
+        return cart_error_json(
+            'Invalid quantity',
+            status=400,
+            errors=format_form_errors(form),
+        )
+
     return redirect('cart:cart_detail')

@@ -1,0 +1,12 @@
+services:
+  rabbitmq:
+    deploy:
+      replicas: 0
+  web:
+    depends_on: {}
+  celery-worker:
+    deploy:
+      replicas: 0
+  flower:
+    deploy:
+      replicas: 0
