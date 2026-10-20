@@ -157,4 +157,4 @@ Key variables (see `.env.example`):
 - `be/ecommerce/ecommerce/pdf_stylesheet.py` — PDF stylesheet resolution
 - `docker-compose.yml` — Service definitions
 - `docker/nginx/default.conf` — Nginx reverse proxy
-- `.github/workflows/ci.yml` — CI pipeline
+- `.github/workflows/ci.yml` — CI pipeline (collectstatic check + tests; Docker image build on every run, GHCR publish on `main`)

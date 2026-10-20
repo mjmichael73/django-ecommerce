@@ -134,6 +134,39 @@ server {
 }
 ```
 
+## Container image from CI
+
+The `docker` job in `.github/workflows/ci.yml` builds the production image (`docker compose build web`) on **every** push and pull request, and — **only on pushes to `main`** — publishes it to the GitHub Container Registry:
+
+| Tag | Meaning |
+|-----|---------|
+| `ghcr.io/<owner>/<repo>:latest` | Most recent successful build of `main` |
+| `ghcr.io/<owner>/<repo>:sha-<short>` | Immutable tag per commit (first 7 characters of the SHA) |
+
+The package is private by default; after the first publish, set its visibility under GitHub → Packages if pulls should work anonymously.
+
+**Run it in compose:** replace the `build:` block of the `web` service in `docker-compose.yml` with an `image:` reference (everything else — env vars, networks, entrypoint behavior — stays the same):
+
+```yaml
+services:
+  web:
+    image: ghcr.io/<owner>/<repo>:latest   # instead of build: { context: ., dockerfile: Dockerfile }
+```
+
+```bash
+docker compose pull web
+docker compose up -d web
+```
+
+**Smoke test with plain Docker** (bypass the entrypoint: it waits for Postgres and runs migrations, which a one-off container has no database for):
+
+```bash
+docker pull ghcr.io/<owner>/<repo>:latest
+docker run --rm \
+  -e SECRET_KEY=local-smoke-test-only -e POSTGRES_PASSWORD=local-smoke-test-only \
+  --entrypoint python ghcr.io/<owner>/<repo>:latest manage.py check
+```
+
 ## Kubernetes Deployment
 
 ### 1. Create Namespace
