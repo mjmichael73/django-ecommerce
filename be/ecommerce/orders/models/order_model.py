@@ -25,6 +25,16 @@ class Order(models.Model):
     paid = models.BooleanField(default=False)
     stripe_id = models.CharField(max_length=250, blank=True)
 
+    # Fraud signals (card 832hc4eg) — flag-only, set by orders.fraud.evaluate
+    # at webhook payment completion. 0/False/blank defaults keep historic
+    # orders untouched.
+    fraud_score = models.PositiveIntegerField(
+        default=0,
+        validators=[MaxValueValidator(100)],
+    )
+    is_flagged = models.BooleanField(default=False)
+    fraud_notes = models.CharField(max_length=250, blank=True)
+
     coupon = models.ForeignKey(
         Coupon,
         related_name='orders',

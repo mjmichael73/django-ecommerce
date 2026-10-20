@@ -256,6 +256,20 @@ RATE_LIMIT_PASSWORD_RESET = (5, 3600)
 # SECURE_PROXY_SSL_HEADER above. Untrusted clients could forge the header.
 RATE_LIMIT_TRUST_X_FORWARDED_FOR = _env_bool('DJANGO_BEHIND_PROXY', 'no')
 
+# Fraud detection thresholds (card 832hc4eg) — orders/fraud.py. Flag-only:
+# the engine scores orders at webhook payment completion; nothing here ever
+# blocks a payment. Weights can be overridden per rule as
+# FRAUD_WEIGHT_<RULE_NAME_UPPERCASE> (velocity_email, large_total,
+# bulk_quantity, new_account_high_value, identity_mismatch, coupon_velocity).
+FRAUD_FLAG_THRESHOLD = 40
+FRAUD_WINDOW_HOURS = 24
+FRAUD_EMAIL_VELOCITY = 3
+FRAUD_LARGE_TOTAL = 1000
+FRAUD_BULK_QUANTITY = 50
+FRAUD_NEW_ACCOUNT_HOURS = 24
+FRAUD_NEW_ACCOUNT_TOTAL = 300
+FRAUD_COUPON_VELOCITY = 3
+
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
 

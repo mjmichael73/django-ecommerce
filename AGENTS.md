@@ -153,6 +153,7 @@ Key variables (see `.env.example`):
 - Email verification tokens are sha256-hashed at rest with a 72h expiry; resend is rate-limited (scope `email_verify`, 5 per hour). Verification is informational and does not gate login or checkout (card d7ac2957).
 - Content Security Policy headers enforced on every response via `ecommerce/csp_middleware.py` and `CSP_POLICY` in settings (card f3d54f76)
 - Social authentication (Google, django-allauth) is env-gated: only wired when both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (`ecommerce/social_auth_config.py`); secrets never in the repo; allauth ships its own migrations (applied by the entrypoint/boot migrate when enabled). See `docs/security.md` (card hhde4h24)
+- Fraud rules are flag-only: engine in `orders/fraud.py` scores each order once at webhook payment completion (score, `is_flagged`, rule names in `fraud_notes` on Order; admin action `mark_rules_reviewed` to clear); no payment is ever auto-blocked (card 832hc4eg)
 
 ## Useful Files
 

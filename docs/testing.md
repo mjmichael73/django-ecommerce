@@ -179,6 +179,22 @@ class TestStripeService:
         assert event['type'] == 'checkout.session.completed'
 ```
 
+### Fraud Tests (card 832hc4eg)
+
+```python
+# orders/tests/test_fraud.py — flag-only fraud detection
+# Per-rule tests via override_settings (small thresholds/windows, no sleeps:
+# backdate through orders/*/update(created=...)); score capping at 100;
+# velocity self-exclusion (at-threshold no flag, one more sibling flags);
+# webhook integration (flags persisted exactly once, same replay is a
+# no-op); evaluation raising must not un-pay, 500, or drop the invoice
+# dispatch; mark_rules_reviewed admin action; and the GUARD that a flagged
+# (fast-velocity) order still gets a 200 — flag never blocks.
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
+    -v "$PWD/be/ecommerce:/app" web python manage.py test \
+    orders.tests.test_fraud payment.tests.test_stripe_webhook -v2
+```
+
 ## Integration Tests
 
 ### Full Flow Tests
@@ -278,6 +294,9 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/
 # Run the payment-idempotency test module (card 7e732hbh)
 docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test payment.tests.test_payment_idempotency -v2
 
+# Run the fraud-detection test module (card 832hc4eg)
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test orders.tests.test_fraud payment.tests.test_stripe_webhook -v2
+
 # Run unit tests
 make test-unit
 
@@ -309,4 +328,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [ ] Test coverage > 80%
 - [ ] CI/CD pipeline configured
 - [x] Email verification test module `accounts.tests.test_email_verification` (card d7ac2957)
+- [x] Fraud detection test module `orders.tests.test_fraud` (card 832hc4eg)
 - [ ] Test data fixtures created
