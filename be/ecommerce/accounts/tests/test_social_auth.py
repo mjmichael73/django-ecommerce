@@ -11,16 +11,19 @@ must 302 to https://accounts.google.com/o/oauth2/ without contacting
 anything, and the callback without a `code` renders allauth's local
 authentication_error template.
 
-The enabled regime cannot rely on a plain `override_settings(
-INSTALLED_APPS=...)` alone: Django's test signals only clear caches for an
-INSTALLED_APPS override; and override_settings.enable() rebuilds the app
-registry BEFORE the other options land (allauth's AccountConfig.ready()
-would then not see the new MIDDLEWARE). So the enabled-regime test class
-rebuilds the registry explicitly (apps.set_installed_apps()), applies
-allauth's migrations to the test database (rolled back at class end), and
-mirrors MIDDLEWARE and the URLconf exactly as settings.py wires them. When
-the process itself already booted in the enabled regime (GOOGLE_* present
-at settings import), the tests simply run against that native state.
+The enabled regime cannot rely on a plain, standalone `override_settings(
+INSTALLED_APPS=...)`: its enable() rebuilds the app registry BEFORE the
+other options land, so allauth's AccountConfig.ready() (which requires
+AccountMiddleware in settings.MIDDLEWARE) would fire too early. When the
+process boots in the disabled regime, the enabled-regime test class
+therefore applies a two-step override: outer MIDDLEWARE+flags first, then
+inner INSTALLED_APPS (whose enable() performs the registry rebuild), then
+allauth's migrations on the test database — all rolled back at class end —
+and mirrors the URLconf with exactly what ecommerce/urls.py appends. The
+result is asserted against the REAL settings (INSTALLED_APPS, MIDDLEWARE,
+ACCOUNT_EMAIL_VERIFICATION). When the process itself already booted in the
+enabled regime (GOOGLE_* present at settings import), the tests simply run
+against that native state.
 """
 import os
 import sys
@@ -32,7 +35,7 @@ from django.apps import apps
 from django.conf import settings
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, override_settings
-from django.test.signals import reset_template_engines, update_installed_apps
+from django.test.signals import reset_template_engines
 from django.urls import NoReverseMatch, include, path, reverse
 
 from ecommerce.social_auth_config import (
@@ -124,12 +127,15 @@ class SocialAuthDisabledTests(TestCase):
 class SocialAuthEnabledTests(TestCase):
     """Credentials set: allauth fully wired, no network touched.
 
-    The app registry is rebuilt via apps.set_installed_apps() — this class
-    cannot rely on override_settings for INSTALLED_APPS because its
-    enable() rebuilds the registry before the other options land
-    (AccountConfig.ready() would not yet see the new MIDDLEWARE). allauth's
-    migrations are applied to the test database inside the class atomics so
-    everything is rolled back at class end.
+    When the process booted in the disabled regime, the production wiring is
+    mirrored with NESTED override_settings so every assertion below reads
+    the real settings state: outer MIDDLEWARE+flags (applied first — the
+    inner override's enable() rebuilds the app registry BEFORE the settings
+    holder swap, and AccountConfig.ready() must already see AccountMiddleware),
+    then inner INSTALLED_APPS, then allauth's own migrations on the test
+    database — all rolled back at class end. When the process itself already
+    booted in the enabled regime (GOOGLE_* present at settings import), no
+    machinery runs and the native state is asserted directly.
     """
 
     @classmethod
@@ -145,42 +151,40 @@ class SocialAuthEnabledTests(TestCase):
         cls._wired_here = True
         cfg = google_social_auth(_ENABLED_ENV)
         enabled_apps = list(settings.INSTALLED_APPS) + list(ALLAUTH_APPS)
+        cls._outer_override = None
+        cls._inner_override = None
         cls._urlconf_override = None
-        # Middleware + flags FIRST: allauth's AccountConfig.ready() runs
-        # during the registry rebuild below and requires AccountMiddleware.
-        cls._override = override_settings(
-            MIDDLEWARE=list(settings.MIDDLEWARE) + [ALLAUTH_MIDDLEWARE],
-            SOCIALACCOUNT_PROVIDERS=cfg.providers,
-            # Same value settings.py sets in the enabled regime (allauth 65
-            # defaults GET /accounts/google/login/ to an interstitial page;
-            # the login page's link navigates via GET).
-            SOCIALACCOUNT_LOGIN_ON_GET=True,
-            AUTHENTICATION_BACKENDS=cfg.auth_backends,
-            ACCOUNT_EMAIL_VERIFICATION='none',
-            SOCIAL_AUTH_GOOGLE_ENABLED=True,
-        )
-        cls._override.enable()
+        cls._urlconf_name = None
         try:
-            # override_settings cannot carry INSTALLED_APPS here: its
-            # enable() rebuilds the registry BEFORE applying the other
-            # options, so AccountConfig.ready() would then read the OLD
-            # MIDDLEWARE. Rebuild the registry explicitly instead.
-            apps.set_installed_apps(enabled_apps)
-            # The manual rebuild skips the cache clearing that
-            # django.test.signals performs for a settings INSTALLED_APPS
-            # override — repeat it here, or stale caches (app-template dirs
-            # and the cached template engine's template_libraries — allauth
-            # ships `{% load allauth %}` and its templates under the
-            # `allauth` package root) make allauth's own templates fail.
-            update_installed_apps(setting='INSTALLED_APPS')
-            reset_template_engines(setting='INSTALLED_APPS')
+            outer = override_settings(
+                MIDDLEWARE=list(settings.MIDDLEWARE) + [ALLAUTH_MIDDLEWARE],
+                SOCIALACCOUNT_PROVIDERS=cfg.providers,
+                # Same value settings.py sets in the enabled regime (allauth
+                # 65 defaults GET /accounts/google/login/ to an interstitial
+                # page; the login page's link navigates via GET).
+                SOCIALACCOUNT_LOGIN_ON_GET=True,
+                AUTHENTICATION_BACKENDS=cfg.auth_backends,
+                ACCOUNT_EMAIL_VERIFICATION='none',
+                SOCIAL_AUTH_GOOGLE_ENABLED=True,
+            )
+            outer.enable()
+            cls._outer_override = outer
+            # The inner override's enable() rebuilds the app registry
+            # (apps.set_installed_apps happens BEFORE the settings holder
+            # swap); the outer override is live by then, so
+            # AccountConfig.ready() sees the required AccountMiddleware, and
+            # the INSTALLED_APPS receivers clear the app/template caches.
+            inner = override_settings(INSTALLED_APPS=enabled_apps)
+            inner.enable()
+            cls._inner_override = inner
             # allauth ships its own migrations; the test DB was created with
             # the disabled app set, so apply them now (rolled back per class).
             call_command('migrate', run_syncdb=False, interactive=False, verbosity=0)
-            cls._urlconf_override = override_settings(
+            urlconf_override = override_settings(
                 ROOT_URLCONF=cls._build_enabled_urlconf()
             )
-            cls._urlconf_override.enable()
+            urlconf_override.enable()
+            cls._urlconf_override = urlconf_override
         except Exception:
             cls._teardown_enabled()
             raise
@@ -202,16 +206,30 @@ class SocialAuthEnabledTests(TestCase):
             path('accounts/', include('allauth.urls')),
         ]
         sys.modules[name] = mod
+        cls._urlconf_name = name
         return name
 
     @classmethod
     def _teardown_enabled(cls):
-        # Must be balanced even on failure (apps registry contract).
-        apps.unset_installed_apps()
-        cls._override.disable()
+        """Balanced teardown for partial failures: urlconf first, then the
+        app registry (inner), then the settings holder (outer), each only
+        when actually applied. The template-engine caches (an allauth-aware
+        engine and its template_libraries) are rebuilt last so no later test
+        module inherits an enabled-regime engine."""
         if cls._urlconf_override is not None:
             cls._urlconf_override.disable()
             cls._urlconf_override = None
+        if cls._urlconf_name:
+            sys.modules.pop(cls._urlconf_name, None)
+            cls._urlconf_name = None
+        if cls._inner_override is not None:
+            # disable() also restores the original app registry.
+            cls._inner_override.disable()
+            cls._inner_override = None
+        if cls._outer_override is not None:
+            cls._outer_override.disable()
+            cls._outer_override = None
+        reset_template_engines(setting='INSTALLED_APPS')
 
     @classmethod
     def tearDownClass(cls):
@@ -224,19 +242,15 @@ class SocialAuthEnabledTests(TestCase):
     def test_flag_on(self):
         self.assertIs(settings.SOCIAL_AUTH_GOOGLE_ENABLED, True)
 
-    def test_allauth_apps_installed(self):
-        # Note: the registry is rebuilt explicitly (see setUpClass); the
-        # settings.INSTALLED_APPS list itself is only fully set in production
-        # (guarded there by settings.py, verified by `manage.py check` with
-        # the credentials set). The registry drives all runtime lookups.
-        installed = {c.name for c in apps.get_app_configs()}
+    def test_enabled_wiring_is_in_settings(self):
+        """The production wiring is actually IN the settings, not a test-
+        built mirror: INSTALLED_APPS, MIDDLEWARE and the email-verification
+        regime are asserted against django.conf.settings."""
         for app_name in ALLAUTH_APPS:
-            self.assertIn(app_name, installed)
-        # Provider config app (registry label of the provider app package).
+            self.assertIn(app_name, settings.INSTALLED_APPS)
         apps.get_app_config('google')
-
-    def test_allauth_middleware_present(self):
         self.assertIn(ALLAUTH_MIDDLEWARE, settings.MIDDLEWARE)
+        self.assertEqual(settings.ACCOUNT_EMAIL_VERIFICATION, 'none')
 
     def test_google_urls_resolve(self):
         self.assertEqual(reverse('google_login'), '/accounts/google/login/')
@@ -254,6 +268,28 @@ class SocialAuthEnabledTests(TestCase):
     def test_context_processor_flag_on(self):
         resp = self.client.get('/accounts/login/')
         self.assertIs(resp.context['social_google_enabled'], True)
+
+    def test_local_registration_and_login_work_when_enabled(self):
+        """Local auth flows are untouched in the enabled regime (card's
+        binding rule): registering still logs the local user in, with the
+        FIRST configured backend — django.contrib.auth.login() refuses to
+        guess between backends, and login_with_csrf_rotation resolves it.
+        """
+        resp = self.client.post(
+            '/accounts/register/',
+            {
+                'username': 'social-enabled-shopper',
+                'email': 'social-enabled-shopper@example.com',
+                'password1': 'complex-pass-phrase-99',
+                'password2': 'complex-pass-phrase-99',
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp['Location'], '/accounts/profile/')
+        self.assertEqual(
+            self.client.session['_auth_user_backend'],
+            settings.AUTHENTICATION_BACKENDS[0],
+        )
 
     def test_google_login_redirects_to_google_without_network(self):
         resp = self.client.get('/accounts/google/login/')

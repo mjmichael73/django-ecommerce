@@ -46,7 +46,6 @@ class GoogleSocialAuthConfig:
                 'APP': {
                     'client_id': self.client_id,
                     'secret': self.client_secret,
-                    'key': '',
                 },
                 'SCOPE': ['profile', 'email'],
                 'AUTH_PARAMS': {'access_type': 'online'},
