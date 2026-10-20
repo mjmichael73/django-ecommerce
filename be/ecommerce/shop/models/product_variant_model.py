@@ -41,6 +41,9 @@ class ProductVariant(models.Model):
                 name='product_variant_sku_unique'
             )
         ]
+        indexes = [
+            models.Index(fields=['available']),
+        ]
 
     def __str__(self):
         return f"{self.product} — {self.name}"

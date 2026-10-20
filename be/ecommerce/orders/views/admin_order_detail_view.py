@@ -6,7 +6,11 @@ from orders.models import Order
 @staff_member_required
 def admin_order_detail(request, order_id):
     order = get_object_or_404(
-        Order.objects.prefetch_related('items', 'items__product'),
+        Order.objects.only(
+            'id', 'created', 'paid', 'discount', 'first_name', 'last_name',
+            'email', 'address', 'postal_code', 'city', 'stripe_id',
+            'fraud_score', 'is_flagged', 'fraud_notes',
+        ).prefetch_related('items', 'items__product'),
         id=order_id,
     )
     return render(

@@ -64,6 +64,7 @@ class Order(models.Model):
         ordering = ['-created']
         indexes = [
             models.Index(fields=['-created']),
+            models.Index(fields=['paid']),
         ]
 
     def __str__(self):

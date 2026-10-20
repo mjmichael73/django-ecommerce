@@ -42,7 +42,7 @@
 </article>
 <section class="product-reviews">
     <h2>Reviews</h2>
-    {% with rating=product.average_rating count=product.review_count %}
+    {% with rating=average_rating count=review_count %}
     <p class="product-reviews__summary">
         {% if count %}★ {{ rating|floatformat:1 }} · {{ count }} review{{ count|pluralize }}{% else %}No reviews yet{% endif %}
     </p>

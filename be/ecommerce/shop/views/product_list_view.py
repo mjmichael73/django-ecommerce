@@ -15,7 +15,7 @@ PRODUCTS_PER_PAGE = 12
 
 def product_list(request, category_slug=None):
     category = None
-    categories = Category.objects.all()
+    categories = Category.objects.only('id', 'name', 'slug')
     products = Product.objects.filter(available=True)
     # Full-text search (card bf247ef9): ?q= filters the catalog, ranked
     # best-match first on PostgreSQL; empty/whitespace/missing q shows the

@@ -212,13 +212,14 @@ class ProductDetailQueryCountTests(TestCase):
         self.assertEqual(response.status_code, 200)
         sqls = [q['sql'] for q in ctx.captured_queries]
         # product+category (1), variants prefetch (1), reviews prefetch (1),
-        # review-user prefetch (1), average_rating aggregate (1),
-        # review_count aggregate (1), plus savepoint/session overhead (3).
+        # review-user prefetch (1), plus savepoint/session overhead (2).
+        # average_rating and review_count are now computed from the prefetched
+        # reviews cache in the view — no extra aggregate/count queries.
         # The old code added one query per review row for ``review.user`` in
         # the template loop — this must stay bounded as reviews grow.
         self.assertLessEqual(
             len(ctx.captured_queries),
-            12,
+            10,
             'product_detail issued too many queries: ' + str(sqls),
         )
         # Sanity: the page still renders the variant and the review.
@@ -244,7 +245,7 @@ class ProductDetailQueryCountTests(TestCase):
             self.client.get(url)
         self.assertLessEqual(
             len(ctx.captured_queries),
-            14,
+            12,
             'product_detail query count grew with review count: '
             + str([q['sql'] for q in ctx.captured_queries]),
         )
@@ -271,4 +272,119 @@ class ProductDetailQueryCountTests(TestCase):
             len(after.captured_queries), len(baseline.captured_queries),
             'query count grew with review count — N+1 regression: '
             + str([q['sql'] for q in after.captured_queries]),
+        )
+
+    def test_no_avg_or_count_queries_for_ratings(self):
+        """average_rating and review_count must not issue DB queries.
+
+        They are now computed from the prefetched reviews cache in the view,
+        passed to the template as ``average_rating`` and ``review_count``.
+        """
+        # Pre-populate the prefetch cache.
+        product = Product.objects.prefetch_related('reviews').get(pk=self.product.pk)
+        # Force-evaluating the reviews cache.
+        list(product.reviews.all())
+        with CaptureQueriesContext(connection) as ctx:
+            # Call the model methods — they should NOT hit the DB because
+            # we pre-computed from prefetched data in the view. Instead,
+            # verify the view passes pre-computed values by checking the
+            # rendered HTML.
+            response = self.client.get(self.product.get_absolute_url())
+        html = response.content.decode()
+        # The summary chip should show "★ 4.0 · 1 review" — proving the
+        # view computed from prefetched data, not from live aggregate queries.
+        self.assertIn('★ 4.0', html)
+        self.assertIn('1 review', html)
+        # No AVG or COUNT queries should appear in the captured SQL.
+        for q in ctx.captured_queries:
+            sql = q['sql'].lower()
+            self.assertNotIn('avg', sql, 'Unexpected AVG query: ' + q['sql'])
+            self.assertNotIn('count', sql, 'Unexpected COUNT query: ' + q['sql'])
+
+
+class OrderOnlyQueryCountTests(TestCase):
+    """Order list/detail views use only() to avoid loading unused fields."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = Client()
+        self.user = User.objects.create_user(
+            'buyer', 'buyer@example.com', 'complex-pass-phrase-99',
+        )
+        self.category = _make_category()
+        self.product = _make_product(self.category, 'Mug', Decimal('10.00'))
+        self.order = _make_order_with_items(self.user, self.product, 3)
+        self.client.force_login(self.user)
+
+    def test_order_list_query_count_is_bounded(self):
+        """order_list loads only needed fields — query count is minimal."""
+        url = reverse('accounts:order_list')
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        # Order query with only() (1) + items prefetch (1) + session/auth
+        # overhead. The `only()` on Order avoids loading unused columns.
+        self.assertLessEqual(
+            len(ctx.captured_queries),
+            8,
+            'order_list issued too many queries: '
+            + str([q['sql'] for q in ctx.captured_queries]),
+        )
+
+    def test_order_detail_query_count_is_bounded(self):
+        """order_detail loads only needed fields with only()."""
+        url = reverse('accounts:order_detail', args=[self.order.id])
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        # Order only() (1) + items prefetch (1) + products prefetch (1) +
+        # session/auth overhead. No N+1 per item, no unnecessary field loading.
+        self.assertLessEqual(
+            len(ctx.captured_queries),
+            8,
+            'order_detail issued too many queries: '
+            + str([q['sql'] for q in ctx.captured_queries]),
+        )
+        # Verify the page renders correctly with only().
+        html = response.content.decode()
+        self.assertIn('Mug', html)
+        self.assertIn('$10.00', html)
+
+    def test_admin_order_detail_query_count_is_bounded(self):
+        """admin_order_detail uses only() for both order and fraud fields."""
+        staff = User.objects.create_superuser(
+            'admin', 'admin@example.com', 'password',
+        )
+        staff_client = Client()
+        staff_client.force_login(staff)
+        url = reverse('orders:admin_order_detail', args=[self.order.id])
+        with CaptureQueriesContext(connection) as ctx:
+            response = staff_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(
+            len(ctx.captured_queries),
+            8,
+            'admin_order_detail issued too many queries: '
+            + str([q['sql'] for q in ctx.captured_queries]),
+        )
+
+    @patch('orders.views.admin_order_pdf_view.weasyprint')
+    def test_admin_order_pdf_query_count_is_bounded(self, mock_weasy):
+        """admin_order_pdf uses only() for minimal field loading."""
+        mock_weasy.HTML.return_value.write_pdf.return_value = None
+        mock_weasy.CSS.return_value = None
+        staff = User.objects.create_superuser(
+            'admin', 'admin@example.com', 'password',
+        )
+        staff_client = Client()
+        staff_client.force_login(staff)
+        url = reverse('orders:admin_order_pdf', args=[self.order.id])
+        with CaptureQueriesContext(connection) as ctx:
+            response = staff_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(
+            len(ctx.captured_queries),
+            9,
+            'admin_order_pdf issued too many queries: '
+            + str([q['sql'] for q in ctx.captured_queries]),
         )
