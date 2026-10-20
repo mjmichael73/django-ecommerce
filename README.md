@@ -179,6 +179,8 @@ Set environment variables (see `.env.example`), or export them in your shell bef
 
 Use Stripe test keys for local development and configure the webhook endpoint to point at your tunneled/public URL (e.g. `/payment/webhook/`).
 
+For local webhook testing without any public deployment, see [docs/stripe-cli.md](docs/stripe-cli.md) — it documents Stripe CLI forwarding to `localhost:8089/payment/webhook/`.
+
 ### 5. Run the web app
 
 From `be/ecommerce`:
@@ -235,7 +237,7 @@ Proposed improvements (not implemented here; ideas for evolving the project):
 1. ~~**Configuration** — Tighten Compose defaults (no insecure `SECRET_KEY` or Postgres credentials in repo workflows) and add a production env checklist.~~ (Done: required `SECRET_KEY` + `POSTGRES_PASSWORD` with no shipped defaults, `.env` from `.env.example`, checklist above.)
 2. ~~**Production readiness** — Apply the checklist; harden `ALLOWED_HOSTS`, `DEBUG`, HTTPS, reverse proxy in front of Gunicorn.~~ (Done: strict `ALLOWED_HOSTS` when `DEBUG=False`, proxy-aware TLS flags, optional nginx profile, `make check-deploy`.)
 3. ~~**Celery operations** — Add a dedicated Flower service or healthchecks for workers; optional Redis persistence policy for result backend.~~ (Done: Flower in default compose, worker `inspect ping` healthcheck; Celery results use DB 1 of the **shared** Redis instance.)
-4. **Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.
+4. ~~**Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.~~ (Done: [docs/stripe-cli.md](docs/stripe-cli.md) — `stripe listen` forwarding to `localhost:8089/payment/webhook/`.)
 5. ~~**WeasyPrint + static files** — Ensure `static/css/pdf.css` is available at `STATIC_ROOT` in all environments (e.g. `collectstatic` in CI/deploy) so PDF generation does not depend on dev-only paths.~~ (Done: `ecommerce/pdf_stylesheet.py`, CI job, `make verify-pdf-static`.)
 6. ~~**Tests** — Add pytest (or Django’s test runner) coverage for checkout, webhooks (signed events), and coupon edge cases.~~ (Done: Django `TestCase` modules; `make test` via Compose; CI job.)
 7. **Observability** — Structured logging, request IDs, and Celery task failure alerts (e.g. Sentry).
@@ -250,6 +252,7 @@ See the [docs/](docs/) folder for detailed documentation:
 - [Architecture](docs/architecture.md) — System architecture, data models, and design decisions
 - [Testing](docs/testing.md) — Testing strategy, unit tests, integration tests, and E2E tests
 - [Security](docs/security.md) — Security measures, configuration, and checklists
+- [Stripe CLI](docs/stripe-cli.md) — Local webhook forwarding with the Stripe CLI
 - [Production](docs/production.md) — Production deployment guide and checklist
 - [Roadmap](docs/roadmap.md) — Future improvements and feature roadmap
 
