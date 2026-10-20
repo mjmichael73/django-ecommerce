@@ -311,6 +311,26 @@ docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm \
     -v "$PWD/be/ecommerce:/app" web python manage.py test cart.tests.test_ajax -v2
 ```
 
+
+### Product recommendations tests (card 45ba5cfh)
+
+```python
+# shop/tests/test_recommendations.py — rule-based product recommendations
+# `recommend_products(product, limit=4)` returns same-category products within
+# a configurable ±50 % price band of the source product, excluding itself and
+# unavailable products, ordered by price distance then name. Tests cover:
+# selection (same category, price range, excludes self/unavailable),
+# empty/small catalogs, zero-price products, default/explicit limits,
+# deterministic ordering (distance then name), fresh queryset behavior,
+# view/template integration (section renders, lists products, excludes self,
+# safe for anonymous visitors), and query efficiency (bounded count + no
+# N+1 growth with recommendation count). Configured via
+# RECOMMENDATION_PRICE_TOLERANCE (default 0.5).
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
+    -v "$PWD/be/ecommerce:/app" web python manage.py test \
+    shop.tests.test_recommendations -v2
+```
+
 ## Integration Tests
 
 ### Full Flow Tests
@@ -459,4 +479,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Full-text search test module `shop.tests.test_full_text_search` (card bf247ef9)
 - [x] Faceted navigation test module `shop.tests.test_facets` (card 3g83heaa)
 - [x] AJAX cart updates test module `cart.tests.test_ajax` (card 77ce5899)
+- [x] Product recommendations test module `shop.tests.test_recommendations` (card 45ba5cfh)
 - [ ] Test data fixtures created

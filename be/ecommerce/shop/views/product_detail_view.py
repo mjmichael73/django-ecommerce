@@ -2,6 +2,7 @@ from django.db.models import Prefetch
 from django.shortcuts import render, get_object_or_404
 from shop.forms import ProductReviewForm
 from shop.models import Product, ProductVariant
+from shop.recommendations import recommend_products
 from cart.forms import CartAddProductForm
 
 
@@ -56,6 +57,9 @@ def product_detail(request, id, slug):
     average_rating, review_count = _approved_review_stats(
         product.reviews.all()
     )
+    # Product recommendations (card 45ba5cfh): same-category products within a
+    # configurable price band of the current product.  One indexed query.
+    recommendations = recommend_products(product)
     return render(
         request,
         'shop/product/detail.html',
@@ -66,5 +70,6 @@ def product_detail(request, id, slug):
             'user_review': user_review,
             'average_rating': average_rating,
             'review_count': review_count,
+            'recommendations': recommendations,
         }
     )
