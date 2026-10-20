@@ -183,6 +183,38 @@ product detail page. There is no reservation system and no decrement at
 cart/checkout time (a documented limitation); concurrent takers have a
 theoretical under-count window, accepted here for simplicity.
 
+### Product reviews (card bd8f759h)
+
+`ProductReview` (`shop.models`) gives the product detail page a review
+surface: logged-in users post a 1-5 rating (validated 1-5 at the model) plus
+a title and body (`max_length=2000`, enforced on the form — the view never
+re-renders the form, it redirects back to the detail page with a
+`messages.error` summary of the field errors instead). One review per user
+per product is enforced in the database (`productreview_unique_per_user`
+unique constraint, mirrored by an early `exists()` check and a caught
+`IntegrityError` for the race window). `user` is `on_delete=PROTECT`: a
+review is part of a user's history, so deleting a user with reviews fails at
+the DB level until an operator removes the reviews explicitly.
+
+Moderation is lenient by default: `approved` ships as `BooleanField(default=True)`
+so turning moderation on is a settings/default away, but nothing auto-hides a
+review today. The aggregates exclude `approved=False` (`Product.average_rating()`
+returns `None` with no ratings, `Product.review_count()` returns an int), and
+the detail page renders a summary chip like `★ 4.5 · 2 reviews` — with no
+zero-star average when there are no reviews yet. The product list page stays
+untouched: reviews are detail-page-only.
+
+The submission route is POST-only and rate-limited with the same limiter
+module as checkout/coupon (`scope 'review'`, `RATE_LIMIT_REVIEW = (10, 3600)`
+per client IP). Decorators are ordered rate_limit → login_required
+outermost-in, so unauthenticated POSTs consume a window before bouncing to
+login; a GET never processes anything and just redirects back to the detail
+page (the only reachable GET is a login `?next=` redirect). Users who already
+reviewed see their review plus a "You reviewed this product" note instead of a
+resubmission form. Reviews are moderated standalone in the admin (no inline
+on products) with approve/unapprove bulk actions; editing/deleting own
+reviews is out of scope for this card.
+
 ## Authentication
 
 ### Email verification (card d7ac2957)

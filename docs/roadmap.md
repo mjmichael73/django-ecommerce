@@ -32,7 +32,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [x] Add product images upload (card ga4e3hg5; uploaded images served absolute under `/media/`, see `shop/tests/test_product_media.py`)
 - [x] Implement product variants (card g99ha567; `shop/tests/test_product_variants.py`)
 - [x] Add inventory tracking (card 44ge8hgb; `shop/tests/test_inventory.py`)
-- [ ] Create product reviews
+- [x] Create product reviews (card bd8f759h; `shop/tests/test_product_reviews.py`)
 
 ### 2.2 Search & Discovery
 - [ ] Add full-text search (PostgreSQL)
