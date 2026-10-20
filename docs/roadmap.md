@@ -16,7 +16,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 
 ### 1.2 Authentication
 - [ ] Add user registration/login
-- [ ] Implement social authentication
+- [x] Implement social authentication
 - [ ] Add email verification
 - [ ] Implement password reset
 

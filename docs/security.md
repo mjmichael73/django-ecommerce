@@ -93,6 +93,27 @@ plain ones — `ecommerce.csp_middleware.CSPMiddleware` is registered outermost
 (MIDDLEWARE position 0) so it wraps responses produced by all inner layers,
 including SecurityMiddleware `SECURE_SSL_REDIRECT` 301s.
 
+### Social Authentication (Google OAuth2)
+
+Social login is provided by **django-allauth** with the **Google** provider
+(card hhde4h24) and is **environment-gated**: it is wired completely only when
+BOTH `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set in the environment
+(secrets never live in the repo — see `.env.example`). When either is
+missing, nothing about allauth is loaded — no extra apps, middleware or URLs —
+and the site behaves exactly as it does without the package.
+
+| Aspect | Behavior |
+|--------|----------|
+| Enabling | Set both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (Google Cloud Console → APIs & Services → Credentials → OAuth client ID, type "Web application") and restart the web service |
+| Callback URL | `http://localhost:8089/accounts/google/login/callback/` (production: same path on your canonical HTTPS origin — register it in the Google console) |
+| Provider credentials | Settings-only via `SOCIALACCOUNT_PROVIDERS` (no `SocialApp` row in the admin/DB) |
+| What appears | The login page shows a "Continue with Google" link only when enabled (context processor flag `social_google_enabled`) |
+| Account linking | An email delivered by Google is NOT auto-associated with an existing local account by default — a first-time Google login creates a new account; no silent link-email matching is enabled in this card |
+| Email verification | `ACCOUNT_EMAIL_VERIFICATION = 'none'` while social login is enabled, so signups are not blocked pending verification (card d7ac2957 will revisit) |
+| CSP | The Google button links to our own backend (which 302s to Google); no new external domains were added to `CSP_POLICY` |
+| GET-initiated OAuth start | `SOCIALACCOUNT_LOGIN_ON_GET = True` while enabled. Allauth ≥ 65 defaults this to False, rendering an interstitial page on GET that requires an extra POST click; we disable the interstitial so the plain anchor button on the login page works. Known tradeoff: the OAuth start request is an unauthenticated GET without a CSRF token — this is deliberate (a plain browser navigation cannot carry a form token); provider-side CSRF is still mitigated by allauth's built-in `state` / PKCE session values, not by Django's CSRF layer. |
+| Disabled regime | Button hidden, `/accounts/google/…` URLs do not resolve (404), `SOCIAL_AUTH_GOOGLE_ENABLED = False` |
+
 ## Security Configuration
 
 ### Environment Variables

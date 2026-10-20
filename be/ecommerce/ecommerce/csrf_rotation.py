@@ -17,6 +17,7 @@ What Django 5.0.3 does on its own (verified in the pinned image):
 The helpers below make the rotation explicit for the flows this app owns,
 so the guarantee does not depend on framework internals.
 """
+from django.conf import settings
 from django.contrib.auth import login as auth_login
 from django.middleware.csrf import rotate_token
 
@@ -30,11 +31,25 @@ def rotate_csrf_token(request):
     rotate_token(request)
 
 
-def login_with_csrf_rotation(request, user):
+def login_with_csrf_rotation(request, user, backend=None):
     """Log ``user`` in and rotate the CSRF token.
 
     The token is rotated before the session is upgraded, so a token issued
     for the anonymous session can never be reused for the authenticated one.
+
+    ``backend`` defaults to the backend that authenticated ``user`` (the
+    ``user.backend`` attribute set by ``django.contrib.auth.authenticate``),
+    falling back to the FIRST configured backend in
+    ``settings.AUTHENTICATION_BACKENDS`` for directly-created users
+    (registration, seeding) — under one backend that is Django's implicit
+    ModelBackend, so behavior is unchanged in the disabled regime, and
+    ``django.contrib.auth.login()`` always receives the explicit backend it
+    demands once more than one backend is configured (social login, card
+    hhde4h24).
     """
     rotate_csrf_token(request)
-    auth_login(request, user)
+    if backend is None:
+        backend = getattr(user, 'backend', None)
+    if backend is None:
+        backend = settings.AUTHENTICATION_BACKENDS[0]
+    auth_login(request, user, backend=backend)

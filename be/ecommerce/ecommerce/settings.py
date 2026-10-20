@@ -17,6 +17,11 @@ from django.core.exceptions import ImproperlyConfigured
 
 from ecommerce.cache_config import cache_config
 from ecommerce.db_config import postgres_database
+from ecommerce.social_auth_config import (
+    ALLAUTH_APPS,
+    ALLAUTH_MIDDLEWARE,
+    google_social_auth,
+)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -119,6 +124,34 @@ MIDDLEWARE = [
 ]
 
 # -----------------------------------------------------------------------------
+# Social authentication (card hhde4h24)
+#
+# Google OAuth2 via django-allauth, env-gated: wired fully only when BOTH
+# GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set (card g89b45f5 — no
+# credentials in the repo). Otherwise the app loads exactly as it does
+# without allauth. The wiring is computed at settings-import time, because
+# INSTALLED_APPS/MIDDLEWARE/the urlconf cannot change at runtime.
+# -----------------------------------------------------------------------------
+
+_social_google = google_social_auth(os.environ)
+SOCIAL_AUTH_GOOGLE_ENABLED = _social_google is not None
+
+if _social_google:
+    INSTALLED_APPS += list(ALLAUTH_APPS)
+    # django-allauth >= 65 requires this middleware (checked at startup).
+    MIDDLEWARE.append(ALLAUTH_MIDDLEWARE)
+    SOCIALACCOUNT_PROVIDERS = _social_google.providers
+    # allauth 65 makes GET requests to /accounts/google/login/ render an
+    # interstitial page by default (SOCIALACCOUNT_LOGIN_ON_GET False); the
+    # "Continue with Google" link on our login page navigates via GET, so
+    # allow the OAuth redirect to start on GET.
+    SOCIALACCOUNT_LOGIN_ON_GET = True
+    AUTHENTICATION_BACKENDS = _social_google.auth_backends
+    # Social signups must not be blocked pending email verification in this
+    # card. Card d7ac2957 (email verification) will revisit.
+    ACCOUNT_EMAIL_VERIFICATION = 'none'
+
+# -----------------------------------------------------------------------------
 # Content Security Policy (card f3d54f76)
 #
 # Single settings constant: a directive -> value-string dict. The middleware
@@ -173,6 +206,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'cart.context_processors.cart',
+                # Exposes social_google_enabled for the login page (card hhde4h24).
+                'accounts.context_processors.social_auth',
             ],
         },
     },

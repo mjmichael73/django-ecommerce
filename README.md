@@ -6,6 +6,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 
 - **Catalog** — products and categories
 - **Cart** — session-backed cart with add/remove/update flows
+- **Accounts** — registration/login/logout, plus optional "Continue with Google" social login via django-allauth (enabled only when `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are set; see [docs/security.md](docs/security.md))
 - **Orders** — checkout and order management (admin includes Stripe dashboard links when `stripe_id` is set)
 - **Payments** — Stripe Checkout Session + webhook handling
 - **Coupons** — apply discounts at checkout

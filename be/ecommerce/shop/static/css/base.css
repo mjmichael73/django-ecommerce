@@ -213,6 +213,15 @@ a:hover {
   margin-bottom: 1rem;
 }
 
+/* OAuth button row on the login page (card hhde4h24) — separated from the
+   password form so the password flow stays visually primary. */
+.auth-panel__social {
+  margin: 1rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border);
+  font-size: 0.9rem;
+}
+
 .order-history {
   background: var(--surface);
   border-radius: var(--radius);

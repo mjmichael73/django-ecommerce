@@ -124,6 +124,7 @@ Key variables (see `.env.example`):
 | `POSTGRES_DB` / `POSTGRES_USER` | No | Default: ecommerce/ecommerce (shared-services instance) |
 | `POSTGRES_PASSWORD` | Yes | Required — no default; must match your Postgres container |
 | `STRIPE_*` | Prod | Payment keys |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth2 (django-allauth). BOTH set → social login enabled; blank/one missing → disabled. Callback URL: `/accounts/google/login/callback/` |
 | `DJANGO_BEHIND_PROXY` | Proxy | Trust X-Forwarded headers |
 | `CSRF_TRUSTED_ORIGINS` | Prod | HTTPS origins for CSRF |
 | `SECURE_SSL_REDIRECT` | Prod | HTTPS redirect |
@@ -149,6 +150,7 @@ Key variables (see `.env.example`):
 - CSRF token rotation on every identity change (login, registration, logout) via `ecommerce/csrf_rotation.py`; failed logins keep the token
 - POST rate limits on checkout/coupon (429 + `Retry-After`), counters in Redis cache DB 2 of the shared instance
 - Content Security Policy headers enforced on every response via `ecommerce/csp_middleware.py` and `CSP_POLICY` in settings (card f3d54f76)
+- Social authentication (Google, django-allauth) is env-gated: only wired when both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (`ecommerce/social_auth_config.py`); secrets never in the repo; allauth ships its own migrations (applied by the entrypoint/boot migrate when enabled). See `docs/security.md` (card hhde4h24)
 
 ## Useful Files
 
