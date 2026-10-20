@@ -301,10 +301,11 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/
 # cart/tests/test_ajax.py — AJAX add/remove/update with JSON responses
 # Tests that cart_add, cart_remove, and cart_detail respond to AJAX requests
 # (X-Requested-With: XMLHttpRequest or Accept: application/json) with a JSON
-# contract carrying total, total_items, and product_name, while non-AJAX POSTs
-# keep the original 302 redirect to cart:cart_detail. Also covers invalid
-# input (400 with form errors), unknown products (404), missing CSRF token
-# (403), and template data attributes that the static JS hooks into.
+# contract carrying total, total_items, subtotal, discount, and product_name,
+# while non-AJAX POSTs keep the original 302 redirect to cart:cart_detail.
+# Also covers invalid input (400 with form errors), unknown products (404),
+# missing CSRF token (403), and template data attributes that the static JS
+# hooks into.
 docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm \
     -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -e SECRET_KEY="test-secret-key-for-running-tests-only" \
     -v "$PWD/be/ecommerce:/app" web python manage.py test cart.tests.test_ajax -v2
