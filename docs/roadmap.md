@@ -24,7 +24,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [ ] Add Stripe webhook signature verification
 - [x] Implement payment idempotency
 - [x] Add fraud detection
-- [ ] Create refund handling
+- [x] Create refund handling
 
 ## Phase 2: Features
 

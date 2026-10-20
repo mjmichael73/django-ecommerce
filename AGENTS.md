@@ -154,6 +154,7 @@ Key variables (see `.env.example`):
 - Content Security Policy headers enforced on every response via `ecommerce/csp_middleware.py` and `CSP_POLICY` in settings (card f3d54f76)
 - Social authentication (Google, django-allauth) is env-gated: only wired when both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (`ecommerce/social_auth_config.py`); secrets never in the repo; allauth ships its own migrations (applied by the entrypoint/boot migrate when enabled). See `docs/security.md` (card hhde4h24)
 - Fraud rules are flag-only: engine in `orders/fraud.py` scores each order once at webhook payment completion (score, `is_flagged`, rule names in `fraud_notes` on Order; admin action `mark_rules_reviewed` to clear); no payment is ever auto-blocked (card 832hc4eg)
+- Refunds are analyst-initiated only — via the `issue_full_refund` admin action or inbound Stripe `charge.refunded` webhook events; never automatic (card a3cg42c4). `payment/refunds.py` `refund_order()` is guarded idempotently (unpaid/no payment_intent → not refundable; non-positive amount → invalid amount; already refunded locally → no second Stripe call) and Stripe errors are caught, logged and returned as messages, never raised into a 500
 
 ## Useful Files
 

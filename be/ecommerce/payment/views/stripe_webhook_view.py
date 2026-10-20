@@ -1,8 +1,10 @@
 import logging
+from decimal import Decimal
 
 import stripe
 from django.conf import settings
 from django.http import HttpResponse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from orders.fraud import evaluate, flag_threshold
 from orders.models import Order
@@ -80,4 +82,47 @@ def stripe_webhook(request):
                 # Launch asynchronous task for payment completed —
                 # unconditional inside the idempotency gate, above.
                 payment_completed.delay(order.id)
+    elif event.type == 'charge.refunded':
+        # Inbound truth for refunds (card a3cg42c4). A refund issued in the
+        # Stripe dashboard (or anywhere else outside this app) arrives here,
+        # so the local order reflects it. The Stripe charge carries the
+        # cumulative refunded sum, so the amount is written as-is (not
+        # incremented). No invoice re-dispatch, no fraud evaluation — a
+        # refund is not a payment event.
+        _apply_refunded_event(event.data.object)
     return HttpResponse(status=200)
+
+
+def _single_refund_id(charge) -> str:
+    """Return the Stripe Refund id of a charge that was refunded exactly
+    once; blank when several refunds happened (a single id cannot attribute
+    the refunded amount unambiguously) or when the event carries no refund
+    list at all."""
+    refunds = getattr(charge, 'refunds', None)
+    data = getattr(refunds, 'data', None)
+    if not data or len(data) > 1:
+        return ''
+    return getattr(data[0], 'id', '') or ''
+
+
+def _apply_refunded_event(charge) -> None:
+    """Record an inbound ``charge.refunded`` event on the matching order."""
+    payment_intent = getattr(charge, 'payment_intent', None)
+    amount_refunded = getattr(charge, 'amount_refunded', None)
+    if not payment_intent or amount_refunded is None:
+        return
+    try:
+        # Stripe speaks cents, the order stores $ units.
+        refunded_amount = Decimal(str(amount_refunded)) / Decimal('100')
+    except (TypeError, ValueError, ArithmeticError):
+        logger.exception('unusable amount_refunded in charge.refunded event')
+        return
+    order = Order.objects.filter(stripe_id=payment_intent).first()
+    if order is None:
+        # Refund for a payment we do not know about — nothing to update.
+        return
+    Order.objects.filter(pk=order.pk).update(
+        refunded_amount=refunded_amount,
+        refund_id=_single_refund_id(charge),
+        refunded_at=timezone.now(),
+    )

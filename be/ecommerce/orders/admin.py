@@ -1,10 +1,13 @@
 from django.contrib import admin
+from django.contrib import messages
 from django.urls import reverse
 from orders.models import Order, OrderItem
 from django.utils.safestring import mark_safe
 import csv
 import datetime
 from django.http import HttpResponse
+
+from payment.refunds import refund_order
 
 
 def export_to_csv(modeladmin, request, queryset):
@@ -69,6 +72,37 @@ def mark_rules_reviewed(modeladmin, request, queryset):
 mark_rules_reviewed.short_description = 'Mark fraud rules reviewed'
 
 
+def issue_full_refund(modeladmin, request, queryset):
+    """Issue a full Stripe refund for every selected order (card a3cg42c4).
+
+    Refunds are analyst-initiated: nothing in the app triggers them
+    automatically. The action is idempotent on the local state — an order
+    that is already fully refunded is refused by ``payment.refunds`` before
+    Stripe is called, so a double click cannot refund twice.
+    """
+    refunded = 0
+    failed = 0
+    for order in queryset:
+        ok, reason = refund_order(order)
+        if ok:
+            refunded += 1
+        else:
+            failed += 1
+            modeladmin.message_user(
+                request,
+                f'Order {order.id}: refund not issued — {reason}',
+                level=messages.WARNING,
+            )
+    modeladmin.message_user(
+        request,
+        f'Full refund issued for {refunded} order(s); {failed} skipped.',
+        level=messages.SUCCESS if failed == 0 else messages.WARNING,
+    )
+
+
+issue_full_refund.short_description = 'Issue full refund (Stripe)'
+
+
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     raw_id_fields = ['product']
@@ -87,6 +121,8 @@ class OrderAdmin(admin.ModelAdmin):
         'city',
         'paid',
         order_payment,
+        'refund_id',
+        'refunded_amount',
         'is_flagged',
         'fraud_score',
         'created',
@@ -96,4 +132,4 @@ class OrderAdmin(admin.ModelAdmin):
     ]
     list_filter = ['paid', 'created', 'updated', 'is_flagged']
     inlines = [OrderItemInline]
-    actions = [export_to_csv, mark_rules_reviewed]
+    actions = [export_to_csv, mark_rules_reviewed, issue_full_refund]
