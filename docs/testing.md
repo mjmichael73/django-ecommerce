@@ -275,6 +275,9 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/
 # Run the password-reset test module (card 9ee2accb)
 docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test accounts.tests.test_password_reset -v2
 
+# Run the payment-idempotency test module (card 7e732hbh)
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test payment.tests.test_payment_idempotency -v2
+
 # Run unit tests
 make test-unit
 
