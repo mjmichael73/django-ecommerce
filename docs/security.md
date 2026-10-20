@@ -61,6 +61,36 @@ rendered into forms is a masked 64-character token derived from it.
 | Webhook Verification | Stripe signatures | ✅ Implemented |
 | Idempotency | Order IDs | ✅ Implemented |
 
+### Content Security Policy
+
+A `Content-Security-Policy` header is enforced (not report-only) on every
+response the app emits, by `ecommerce.csp_middleware.CSPMiddleware` (card
+f3d54f76). The value is compiled from a single settings constant `CSP_POLICY`:
+
+```
+default-src 'self'; base-uri 'self'; form-action 'self';
+frame-ancestors 'none'; object-src 'none'; script-src 'self';
+style-src 'self' 'unsafe-inline'; img-src 'self'
+```
+
+Why each non-`'self'` source is allowed:
+
+| Source | Reason (survey finding) |
+|--------|-------------------------|
+| `'unsafe-inline'` in `style-src` | Templates legitimately use inline `style=""` attributes (cart detail, payment canceled, admin order detail); these are intentionally not restructured. |
+| `'unsafe-inline'` NOT in `script-src` | The app owns no inline `<script>` blocks. The single inline handler (`onclick="window.print()"` in the admin order detail) was moved to `shop/static/js/admin-order-print.js`, so `script-src` stays `'self'`. |
+| `img-src 'self'` (no `data:`) | No data-URI images were found; product/placeholder images load from static/media (same origin). |
+
+No external domains are required: Stripe uses Checkout redirect (no Stripe.js
+or iframe). A Google Fonts stylesheet is referenced from
+`shop/templates/shop/base.html` but is deliberately **not** whitelisted so the
+policy matches the exact default above; fonts fall back to `system-ui`.
+
+Optional reporting: set `CSP_REPORT_URI` (Compose: web service only) to append
+a `report-uri` directive for browser→collector violation reports (see
+`.env.example`). The header applies to all responses equally, including 429 /
+plain ones.
+
 ## Security Configuration
 
 ### Environment Variables

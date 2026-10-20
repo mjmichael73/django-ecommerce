@@ -1,3 +1,4 @@
+{% load static %}
 {% extends "admin/base_site.html" %}
 
 {% block title %}
@@ -19,7 +20,7 @@
   <h1>Order {{ order.id }}</h1>
   <ul class="object-tools">
     <li>
-      <a href="#" onclick="window.print();">
+      <a href="#" class="js-print-order">
         Print order
       </a>
     </li>
@@ -91,4 +92,6 @@
     </tbody>
   </table>
 </div>
+
+<script src="{% static 'js/admin-order-print.js' %}" defer></script>
 {% endblock %}

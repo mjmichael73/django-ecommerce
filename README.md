@@ -138,6 +138,7 @@ Use this before pointing a real domain or live Stripe keys at the app. Not every
 | **TLS** | Terminate TLS at nginx (this repo includes a proxy profile), Traefik, or your LB; do not expose Gunicorn publicly. Prefer redirects to HTTPS at the proxy; see `SECURE_SSL_REDIRECT` in `.env.example`. |
 | **Broker / cache** | RabbitMQ and Redis are not exposed publicly by this stack; the shared Redis container lives on `shared-services-network` and its persistence policy is managed in `~/projects/shared-services`. |
 | **Rate limits** | Checkout and coupon-apply POSTs are limited per client IP (10 per hour by default — `RATE_LIMIT_CHECKOUT` / `RATE_LIMIT_COUPON`), returning 429 with `Retry-After`. Counters live in the Django cache: Redis DB 2 of the shared instance under Compose, in-process memory otherwise. |
+| **Content Security Policy** | A `Content-Security-Policy` header is enforced on every response (`CSP_POLICY` in settings, `ecommerce/csp_middleware.py`); optional `CSP_REPORT_URI` for violation reporting (`.env.example`). |
 | **Media & static** | Media volume or object storage is backed up; understand who can read/write `MEDIA_ROOT`. |
 | **Process** | Run `python manage.py check --deploy` in the target environment and fix reported issues. |
 | **Dependencies** | Pin or lock images and Python packages; plan security updates. |

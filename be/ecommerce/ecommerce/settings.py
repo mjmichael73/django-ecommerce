@@ -106,11 +106,50 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    # Content Security Policy header on every response (card f3d54f76).
+    # Registered after CommonMiddleware so it decorates responses produced by
+    # the rest of the stack; it is independent of the other security
+    # middlewares and applies to all responses equally.
+    'ecommerce.csp_middleware.CSPMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# -----------------------------------------------------------------------------
+# Content Security Policy (card f3d54f76)
+#
+# Single settings constant: a directive -> value-string dict. The middleware
+# (ecommerce.csp_middleware.CSPMiddleware) turns it into the
+# ``Content-Security-Policy`` header; there is no per-request parsing.
+#
+# default-src 'self' covers everything not listed explicitly.
+# - script-src 'self': the app owns no inline <script> blocks or inline event
+#   handlers (the one ``onclick`` in the admin order detail was moved to a
+#   static JS file), so 'unsafe-inline' is not needed.
+# - style-src 'self' 'unsafe-inline': templates use inline style="" attrs
+#   (cart detail, payment canceled, admin order detail) and those are not
+#   restructured (see docs/security.md).
+# - img-src 'self': no data-URI images were found in the survey.
+# - frame-ancestors 'none', object-src 'none', base-uri 'self',
+#   form-action 'self' are defensive lockdown directives.
+_CSP_SELF = "'self'"
+CSP_POLICY = {
+    "default-src": _CSP_SELF,
+    "base-uri": _CSP_SELF,
+    "form-action": _CSP_SELF,
+    "frame-ancestors": "'none'",
+    "object-src": "'none'",
+    "script-src": _CSP_SELF,
+    "style-src": f"{_CSP_SELF} 'unsafe-inline'",
+    "img-src": _CSP_SELF,
+}
+
+# Optional violation reporting endpoint (browser -> collector). Only appended
+# to the header when set via CSP_REPORT_URI (wired to the web service only in
+# Compose). Empty -> no report-uri directive.
+CSP_REPORT_URI = os.environ.get("CSP_REPORT_URI", "")
 
 ROOT_URLCONF = 'ecommerce.urls'
 
