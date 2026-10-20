@@ -6,7 +6,9 @@ from orders.models import Order
 
 @login_required
 def order_list(request):
-    orders = Order.objects.filter(user=request.user).prefetch_related(
+    orders = Order.objects.filter(user=request.user).only(
+        'id', 'created', 'paid', 'discount',
+    ).prefetch_related(
         'items',
     )
     return render(
@@ -19,7 +21,10 @@ def order_list(request):
 @login_required
 def order_detail(request, pk):
     order = get_object_or_404(
-        Order.objects.prefetch_related('items', 'items__product'),
+        Order.objects.only(
+            'id', 'created', 'paid', 'discount', 'first_name', 'last_name',
+            'email', 'address', 'postal_code', 'city', 'stripe_id',
+        ).prefetch_related('items', 'items__product'),
         pk=pk,
         user=request.user,
     )
