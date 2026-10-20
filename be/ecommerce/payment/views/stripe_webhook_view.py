@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from orders.fraud import evaluate, flag_threshold
 from orders.models import Order
 from orders.tasks import payment_completed
+from shop import inventory
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,12 @@ def stripe_webhook(request):
                         'fraud evaluation/persistence failed for order %s',
                         order_id,
                     )
+                # Decrement stock once, guarded by the same idempotency gate
+                # above (replays never reach this branch again). Placed before
+                # the invoice dispatch so a DB hiccup here is visible instead
+                # of silently swallowing the `.delay`; it never raises, so it
+                # cannot break the invoice ordering that exists today.
+                inventory.decrement_for_order(order)
                 # Launch asynchronous task for payment completed —
                 # unconditional inside the idempotency gate, above.
                 payment_completed.delay(order.id)

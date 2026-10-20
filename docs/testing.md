@@ -253,6 +253,22 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
     shop.tests.test_product_variants -v2
 ```
 
+### Inventory tracking tests (card 44ge8hgb)
+
+```python
+# shop/tests/test_inventory.py — nullable stock (NULL = untracked = always
+# sellable) on Product and ProductVariant; decrement once per paid order inside
+# the webhook's guarded `updated == 1` branch, clamped at 0, never negative.
+# Covers: untracked no-op + is_in_stock(); product vs variant decrement in one
+# order; clamp-to-zero with assertLogs warning; webhook integration (decrement
+# exactly once, replay is a no-op, flagged orders still decrement); detail-page
+# "In stock"/"Sold out" badge with no numeric count for untracked; admin
+# changelist columns for stock + is_in_stock.
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
+    -v "$PWD/be/ecommerce:/app" web python manage.py test \
+    shop.tests.test_inventory -v2
+```
+
 ## Integration Tests
 
 ### Full Flow Tests
@@ -396,4 +412,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Refund handling test module `payment.tests.test_refunds` (card a3cg42c4)
 - [x] Product media test module `shop.tests.test_product_media` (card ga4e3hg5)
 - [x] Product variant test module `shop.tests.test_product_variants` (card g99ha567)
+- [x] Inventory tracking test module `shop.tests.test_inventory` (card 44ge8hgb)
 - [ ] Test data fixtures created

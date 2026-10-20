@@ -24,6 +24,11 @@ class ProductVariant(models.Model):
         blank=True
     )
     available = models.BooleanField(default=True)
+    stock = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Independent of the product; NULL = untracked (always sellable).',
+    )
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
 
@@ -43,3 +48,12 @@ class ProductVariant(models.Model):
     def unit_price(self):
         """Effective price: the variant override, else the product price."""
         return self.price if self.price is not None else self.product.price
+
+    def is_in_stock(self):
+        """Untracked (NULL) is always sellable; tracked stock > 0 is in stock."""
+        if self.stock is None:
+            return True
+        return self.stock > 0
+
+    is_in_stock.boolean = True
+    is_in_stock.short_description = 'In stock'
