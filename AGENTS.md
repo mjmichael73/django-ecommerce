@@ -149,6 +149,7 @@ Key variables (see `.env.example`):
 - Webhook signature verification implemented
 - CSRF token rotation on every identity change (login, registration, logout) via `ecommerce/csrf_rotation.py`; failed logins keep the token
 - POST rate limits on checkout/coupon (429 + `Retry-After`), counters in Redis cache DB 2 of the shared instance
+- Email verification tokens are sha256-hashed at rest with a 72h expiry; resend is rate-limited (scope `email_verify`, 5 per hour). Verification is informational and does not gate login or checkout (card d7ac2957).
 - Content Security Policy headers enforced on every response via `ecommerce/csp_middleware.py` and `CSP_POLICY` in settings (card f3d54f76)
 - Social authentication (Google, django-allauth) is env-gated: only wired when both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (`ecommerce/social_auth_config.py`); secrets never in the repo; allauth ships its own migrations (applied by the entrypoint/boot migrate when enabled). See `docs/security.md` (card hhde4h24)
 

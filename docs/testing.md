@@ -269,6 +269,9 @@ def test_checkout_flow():
 # Run all tests
 make test
 
+# Run the email-verification test module (card d7ac2957)
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test accounts.tests.test_email_verification -v2
+
 # Run unit tests
 make test-unit
 
@@ -299,4 +302,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [ ] E2E tests for user journeys
 - [ ] Test coverage > 80%
 - [ ] CI/CD pipeline configured
+- [x] Email verification test module `accounts.tests.test_email_verification` (card d7ac2957)
 - [ ] Test data fixtures created

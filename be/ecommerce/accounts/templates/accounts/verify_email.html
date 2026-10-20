@@ -1,0 +1,37 @@
+{% extends "shop/base.html" %}
+
+{% block title %}Confirm your email · Studio Market{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="page-head__title">Confirm your email</h1>
+  <p class="page-head__crumb">Verify your email address</p>
+</div>
+<div class="auth-stack">
+  <div class="order-form-panel auth-panel">
+    {% if result == 'ok' %}
+      <p class="auth-panel__meta">Your email address has been confirmed.</p>
+      <p><a href="{% url 'accounts:login' %}">Log in</a> to continue.</p>
+    {% else %}
+      <p class="auth-panel__meta">
+        This verification link is no longer valid.
+      </p>
+      <p>
+        It may have expired (links are valid for 72 hours) or already been
+        used. Verification links are single-use.
+      </p>
+      {% if user.is_authenticated %}
+        <p>
+          Already logged in? Your profile shows whether your email is
+          verified, and you can <a href="{% url 'accounts:profile' %}">re-send the verification email</a> from there.
+        </p>
+      {% else %}
+        <p>
+          Not logged in? <a href="{% url 'accounts:login' %}">Log in</a>, then
+          re-send the verification email from your profile.
+        </p>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
