@@ -1,5 +1,6 @@
 {% extends "shop/base.html" %}
 {% load static %}
+{% load facet_tags %}
 {% block title %}
 {% if category %}{{ category.name }} · Studio Market{% else %}Shop · Studio Market{% endif %}
 {% endblock %}
@@ -21,22 +22,76 @@
     <aside class="sidebar-card" aria-label="Categories">
         <h3>Categories</h3>
         <ul>
-            <li {% if not category %}class="selected"{% endif %}>
+            <li {% if not category and not facet_selection.categories %}class="selected"{% endif %}>
                 <a href="{% url 'shop:product_list' %}">All products</a>
             </li>
             {% for c in categories %}
-            <li {% if category.slug == c.slug %}class="selected"{% endif %}>
-                <a href="{{ c.get_absolute_url }}">{{ c.name }}</a>
+            {% with cat_count=facet_counts.category|get_category_count:c %}
+            <li class="{% if c.slug in facet_selection.categories %}selected{% elif cat_count == 0 and c.slug not in facet_selection.categories %}disabled{% endif %}">
+                <a href="{{ c.get_absolute_url }}"
+                   {% if cat_count == 0 and c.slug not in facet_selection.categories %}aria-disabled="true"{% endif %}>
+                    {{ c.name }}
+                    {% if cat_count > 0 %}
+                        <span class="sidebar-card__count">({{ cat_count }})</span>
+                    {% endif %}
+                </a>
             </li>
+            {% endwith %}
             {% endfor %}
         </ul>
     </aside>
+    {% if facet_selection.is_active or query %}
+    <aside class="sidebar-card" aria-label="Refine">
+        <h3>Refine</h3>
+        {% if facet_selection.is_active %}
+        <p class="refine__active-hint">
+            Filters active — <a href="{% clear_all_facet_url request.GET %}">Clear all</a>
+        </p>
+        {% endif %}
+        <h4 class="sidebar-card__facet-title">Price</h4>
+        <ul class="facet-list">
+            {% facet_prices_list as prices %}
+            {% for key, label, low, high in prices %}
+            {% with count=facet_counts.price|dict_get:key %}
+            <li class="{% if key in facet_selection.prices %}selected{% elif count == 0 and key not in facet_selection.prices %}disabled{% endif %}">
+                <a href="{% build_facet_url request.GET 'price' key %}"
+                   {% if count == 0 and key not in facet_selection.prices %}aria-disabled="true"{% endif %}>
+                    {{ label }}
+                    {% if count > 0 %}<span class="sidebar-card__count">({{ count }})</span>{% endif %}
+                </a>
+            </li>
+            {% endwith %}
+            {% endfor %}
+        </ul>
+        <h4 class="sidebar-card__facet-title">Rating</h4>
+        <ul class="facet-list">
+            {% facet_ratings_list as ratings %}
+            {% for step in ratings %}
+            {% with count=facet_counts.rating|dict_get:step %}
+            <li class="{% if step == facet_selection.rating %}selected{% elif count == 0 %}disabled{% endif %}">
+                <a href="{% build_facet_url request.GET 'rating' step %}"
+                   {% if count == 0 and step != facet_selection.rating %}aria-disabled="true"{% endif %}>
+                    ★ {{ step }} &up;
+                    {% if count > 0 %}<span class="sidebar-card__count">({{ count }})</span>{% endif %}
+                </a>
+            </li>
+            {% endwith %}
+            {% endfor %}
+        </ul>
+        <h4 class="sidebar-card__facet-title">Availability</h4>
+        <ul class="facet-list">
+            <li {% if facet_selection.stock %}class="selected"{% endif %}>
+                <a href="{% build_facet_url request.GET 'stock' 'in' %}">In stock ({{ facet_counts.stock }})</a>
+            </li>
+        </ul>
+    </aside>
+    {% endif %}
     <div class="product-grid">
         {% for product in products %}
         <article class="product-card">
             <a href="{{ product.get_absolute_url }}" class="product-card__link">
                 <div class="product-card__image-wrap">
-                    <img src="{% if product.image %}{{ product.image.url }}{% else %}{% static 'img/no_image.svg' %}{% endif %}" alt="{{ product.name }}" width="400" height="400" loading="lazy">
+                    <img src="{% if product.image %}{{ product.image.url }}{% else %}{% static 'img/no_image.svg' %}{% endif %}" alt="{{ product.name }}" width="400" height="400" loading="lazy" decoding="async">
                 </div>
                 <div class="product-card__body">
                     <h2 class="product-card__name">{{ product.name }}</h2>
@@ -45,7 +100,7 @@
             </a>
         </article>
         {% empty %}
-        <p class="page-head__crumb">{% if query %}No products match your search.{% else %}No products in this category yet.{% endif %}</p>
+        <p class="page-head__crumb">{% if query %}No products match your search.{% elif facet_selection.is_active %}No products match the selected filters.{% else %}No products in this category yet.{% endif %}</p>
         {% endfor %}
     </div>
 </div>

@@ -241,6 +241,43 @@ or ranking. The fallback also ORs terms where the Postgres plain parser
 ANDs lexemes, so multi-word queries can match more rows on SQLite than on
 Postgres; CI-only scaffolding, not a product surface.
 
+### Faceted navigation (card 3g83heaa)
+
+The catalog list page (`product_list` view) gains a Refine sidebar of facets — plain
+GET links, no JavaScript, no new models, no migrations. Facets narrow the same
+queryset that full-text search (`?q=`) operates on, so searching and filtering
+compose: `?q=` rides along on every facet link (the view preserves all non-facet
+GET params) and facet filtering is applied *after* search ranking.
+
+**Semantics:**
+- **OR-within, AND-across.** Selecting two values of one facet widens it ("red OR
+  blue"); selecting values across different facets intersects them. Price bands and
+  categories are multi-select; rating is single-select (the strongest selected
+  threshold in `RATING_STEPS = (4, 3, 2)` wins); stock is boolean (`?stock=in`).
+- **Counts exclude the facet itself.** Each facet's hit counts are computed on the
+  queryset filtered by all *other* active facets (plus base filters: `available=True`,
+  path category, `?q=`). A value that counts 0 is genuinely unreachable and renders
+  as a disabled (non-clickable) link — counts never lie.
+- **Unknown input is ignored.** `parse_facets` drops unknown slugs/keys via
+  `getlist()`, keeps first-occurrence order without duplicates, and never 500s on a
+  malformed URL. The path `category_slug` keeps its existing 404 behavior.
+
+**Price bands** are fixed catalog-wide half-open intervals over `Product.price`
+(`under-25` `[None,25)`, `25-50` `[25,50)`, `50-100` `[50,100)`, `100-plus`
+`[100,None)`) — stable across pages and results.
+
+**Rating** uses `apply_rating_annotation` to annotate `rating_avg = Avg('reviews__rating',
+filter=Q(reviews__approved=True))` (wrapped in `Coalesce(..., Value(None))` so unrated
+products compare as `None`, never satisfying `>=`). The annotation is applied to the
+base queryset once in the view, ahead of facet filtering and counts.
+
+**Implementation** lives in `shop/facets.py` (parsing, filtering, counts, URL
+builders) with `shop/templatetags/facet_tags.py` providing `build_facet_url`,
+`clear_all_facet_url`, `dict_get`, `get_category_count`, `facet_prices_list`, and
+`facet_ratings_list` for the template. The `product_list` view context adds
+`facet_selection` (the parsed `FacetSelection`) and `facet_counts` (per-facet value
+maps) alongside the existing `category`, `categories`, `products`, `query`.
+
 ## Authentication
 
 ### Email verification (card d7ac2957)
