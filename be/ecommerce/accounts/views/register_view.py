@@ -1,8 +1,8 @@
-from django.contrib.auth import login
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from accounts.forms import RegisterForm
+from ecommerce.csrf_rotation import login_with_csrf_rotation
 
 
 def register(request):
@@ -12,7 +12,7 @@ def register(request):
         form = RegisterForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user)
+            login_with_csrf_rotation(request, user)
             return redirect(reverse('accounts:profile'))
     else:
         form = RegisterForm()

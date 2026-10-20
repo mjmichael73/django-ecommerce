@@ -15,6 +15,7 @@ from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 
+from ecommerce.cache_config import cache_config
 from ecommerce.db_config import postgres_database
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -150,21 +151,14 @@ else:
 # Cache — used by rate limiting (card 25ahc7hg). Compose points
 # REDIS_CACHE_URL at the shared Redis instance, DB 2 (DB 1 is the Celery
 # result backend). Without it (local runs, tests) each process keeps its own
-# LocMem cache, so no Redis is required.
-if os.environ.get('REDIS_CACHE_URL'):
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-            'LOCATION': os.environ['REDIS_CACHE_URL'],
-        }
-    }
-else:
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-            'LOCATION': 'ecommerce',
-        }
-    }
+# LocMem cache, so no Redis is required. An empty REDIS_CACHE_URL counts as
+# unset — the test suite must not read or mutate the shared cache.
+CACHES = {'default': cache_config(os.environ)}
+
+# Tests always run on a per-process LocMem cache — the shared Redis holds
+# the rate-limit counters, which survive between runs and would make the
+# suite depend on how often it was started (see ecommerce/test_runner.py).
+TEST_RUNNER = 'ecommerce.test_runner.LocMemCacheTestRunner'
 
 # POST rate limits per client IP as (attempts, period_seconds) —
 # see ecommerce/rate_limit.py.

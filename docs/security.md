@@ -16,9 +16,32 @@ If you discover a security vulnerability, please report it responsibly:
 | Feature | Implementation | Status |
 |---------|---------------|--------|
 | User Authentication | Django sessions | ✅ Implemented |
-| CSRF Protection | Django middleware | ✅ Enabled |
+| CSRF Protection | Django middleware + token rotation | ✅ Enabled |
 | Session Security | Secure cookies | ✅ Configured |
 | Password Hashing | PBKDF2 | ✅ Default |
+
+### CSRF Protection
+
+`django.middleware.csrf.CsrfViewMiddleware` is enabled and every
+state-changing form renders `{% csrf_token %}`. Django 5.0 always masks the
+token it renders into the form (the transitional `CSRF_COOKIE_MASKED`
+setting was removed in Django 5.0, so masking is unconditional), and the
+cookie is sent with `SameSite=Lax`.
+
+The token is **rotated on every identity state change**, so a token captured
+before the transition cannot be replayed after it:
+
+| Transition | Rotated | Where |
+|------------|---------|-------|
+| Login | ✅ | `django.contrib.auth.login()` calls `rotate_token()` — Django's built-in `LoginView` is covered out of the box |
+| Registration | ✅ | `accounts.views.register` → `ecommerce.csrf_rotation.login_with_csrf_rotation()` |
+| Logout | ✅ | `accounts.views.CsrfRotatingLogoutView` — Django's `LogoutView` flushes the session but does **not** rotate the token |
+
+A **failed** login does not rotate the token, so an attacker cannot invalidate
+the token of a victim's login form by submitting wrong credentials.
+
+The `csrftoken` cookie holds the unmasked 32-character secret; the value
+rendered into forms is a masked 64-character token derived from it.
 
 ### Data Protection
 
@@ -156,6 +179,7 @@ LOGGING = {
 - [ ] HTTPS enabled
 - [ ] Security headers configured
 - [x] Rate limiting enabled
+- [x] CSRF token rotation on login/registration/logout
 - [ ] Input validation implemented
 - [ ] Dependencies updated
 - [ ] Security scan passed
