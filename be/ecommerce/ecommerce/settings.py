@@ -302,7 +302,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
-STATIC_URL = 'static/'
+# Leading slash = site-root absolute: a relative 'static/' prefix would be
+# resolved against the current page path and 404 on nested pages.
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'static'
 
 STORAGES = {
@@ -323,7 +325,9 @@ LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'accounts:profile'
 LOGOUT_REDIRECT_URL = 'shop:product_list'
 
-MEDIA_URL = 'media/'
+# Leading slash = site-root absolute: a relative 'media/' prefix made
+# product image URLs resolve against the page path and 404 on detail pages.
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 CART_SESSION_ID = 'cart'

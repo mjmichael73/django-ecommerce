@@ -33,6 +33,7 @@ from unittest import skipUnless
 
 from django.apps import apps
 from django.conf import settings
+from django.contrib import admin
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.test.signals import reset_template_engines
@@ -229,6 +230,15 @@ class SocialAuthEnabledTests(TestCase):
         if cls._outer_override is not None:
             cls._outer_override.disable()
             cls._outer_override = None
+        # Card ga4e3hg5: allauth's ModelAdmins stay in admin.site._registry
+        # after the app registry is restored, so the next admin page built
+        # with the disabled app set raises LookupError on the vanished
+        # 'account'/'socialaccount' app configs. Drop registrations whose app
+        # is no longer installed so later test modules see a clean admin.
+        installed_labels = {config.label for config in apps.get_app_configs()}
+        for model in list(admin.site._registry):
+            if model._meta.app_label not in installed_labels:
+                admin.site.unregister(model)
         reset_template_engines(setting='INSTALLED_APPS')
 
     @classmethod

@@ -121,6 +121,28 @@ A Django 5 demo shop with session-based cart, checkout, Stripe Checkout payments
 | redis | 6379 (DB 1 for Celery results) | Cache + Celery results — **shared instance** from `~/projects/shared-services` |
 | rabbitmq | 5672 | Celery broker |
 
+## Shop media & static files (card ga4e3hg5)
+
+`Product.image` is an `ImageField(upload_to='products/%Y/%m/%d')`; uploads go
+through the admin change form and `seed` writes deterministic placeholder
+JPEGs, all into the `media_data` volume mounted at `/app/media`. The product
+list and detail templates render `{{ product.image.url }}` with a
+`/static/img/no_image.svg` fallback.
+
+`STATIC_URL` and `MEDIA_URL` are declared with a leading slash (`'/static/'`,
+`'/media/'`), so the generated URLs are site-root absolute and resolve the same
+from the root list page and from a nested detail page such as `/<id>/<slug>/`
+(a browser-relative `media/...` would resolve against the page path).
+
+- **Development (`DEBUG=True`)**: `ecommerce/urls.py` appends
+  `static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)`, so Django
+  itself serves uploaded media.
+- **Production (reverse-proxy profile)**: nginx serves `/media/` from
+  `/app/media/` (`expires 30d`, immutable) and `/static/` from `/app/static/`
+  (`expires 7d`) instead of proxying files to Gunicorn — so the proxy container
+  must have both trees mounted readable (the shared `media_data` volume and the
+  collected static of the web image).
+
 ## Authentication
 
 ### Email verification (card d7ac2957)
