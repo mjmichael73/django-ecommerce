@@ -48,36 +48,36 @@ def stripe_webhook(request):
                 stripe_id=session.payment_intent,
             )
             if updated == 1:
-                # Fraud evaluation (card 832hc4eg) — FLAG-ONLY. It scores the
-                # order and persists the signals; it never un-pays, blocks,
-                # or 40x's anything (the row is already paid above). It runs
-                # here because the guarded update above makes this branch run
-                # exactly once per order (idempotency gate), so replays never
-                # re-evaluate. Evaluation happens AFTER the payment fields
-                # landed. Evaluating via update() (not .save()) never stomps
+                # Fraud evaluation (card 832hc4eg) — FLAG-ONLY, BEST-EFFORT.
+                # It scores the order and persists the signals; it never
+                # un-pays, blocks, or 40x's anything (the row is already paid
+                # above). It runs here because the guarded update above makes
+                # this branch run exactly once per order (idempotency gate),
+                # so replays never re-evaluate. Evaluation happens AFTER the
+                # payment fields landed; update() (not .save()) never stomps
                 # concurrent changes to other Order fields.
                 #
-                # Error-handling decision: evaluation failure is caught and
-                # logged only. The invoice dispatch below runs REGARDLESS of
-                # the fraud outcome — the customer's invoice is the primary
-                # side effect of payment, and a fraud-signal problem must
-                # never delay or drop it (same best-effort style as the mail
-                # task, which the view does not defend against either).
+                # Error-handling decision: evaluate + persist run in ONE
+                # try/except — a failure inside it (evaluation or the
+                # persist UPDATE itself) is caught and logged only. The
+                # invoice dispatch below is UNCONDITIONAL inside this
+                # branch, not tied to the fraud outcome: paid=True has
+                # already committed, so a persist crash that skipped the
+                # invoice would be unrecoverable — Stripe's replay answers
+                # updated == 0 and never reaches this code again.
                 try:
                     score, flags = evaluate(order)
-                except Exception:
-                    # Unreachable as long as every rule guards itself, but a
-                    # failure here must never fail the webhook or leave the
-                    # order stuck: paid=True was already committed.
-                    logger.exception(
-                        'fraud evaluation failed for order %s', order_id
-                    )
-                else:
                     Order.objects.filter(id=order_id).update(
                         fraud_score=score,
                         is_flagged=score >= flag_threshold(),
                         fraud_notes=','.join(flags),
                     )
-                # Launch asynchronous task for payment completed
+                except Exception:
+                    logger.exception(
+                        'fraud evaluation/persistence failed for order %s',
+                        order_id,
+                    )
+                # Launch asynchronous task for payment completed —
+                # unconditional inside the idempotency gate, above.
                 payment_completed.delay(order.id)
     return HttpResponse(status=200)

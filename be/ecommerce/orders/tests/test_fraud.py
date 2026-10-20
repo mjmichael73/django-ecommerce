@@ -18,6 +18,7 @@ from django.utils import timezone
 
 from coupons.models import Coupon
 from orders.admin import mark_rules_reviewed
+from orders import fraud
 from orders.fraud import evaluate
 from orders.models import Order, OrderItem
 from shop.models import Category, Product
@@ -274,24 +275,36 @@ class FraudWebhookTests(FraudTestMixin, TestCase):
             )
 
     def test_flags_persisted_exactly_once_and_replay_is_a_no_op(self, mock_task):
-        response = self._post_event(_checkout_completed_event(self.order.id))
-        self.assertEqual(response.status_code, 200)
-        self.order.refresh_from_db()
-        self.assertTrue(self.order.paid)
-        self.assertEqual(self.order.fraud_score, 30)
-        self.assertTrue(self.order.is_flagged)
-        self.assertEqual(self.order.fraud_notes, 'large_total')
-        mock_task.assert_called_once_with(self.order.id)
+        # Patch evaluate with its real implementation to make the
+        # no-double-eval guarantee observable by CALL COUNT, not just by
+        # state (a re-run on replay would recompute identical values).
+        with patch(
+            'payment.views.stripe_webhook_view.evaluate',
+            side_effect=fraud.evaluate,
+        ) as mock_eval:
+            response = self._post_event(
+                _checkout_completed_event(self.order.id)
+            )
+            self.assertEqual(response.status_code, 200)
+            self.order.refresh_from_db()
+            self.assertTrue(self.order.paid)
+            self.assertEqual(self.order.fraud_score, 30)
+            self.assertTrue(self.order.is_flagged)
+            self.assertEqual(self.order.fraud_notes, 'large_total')
+            mock_task.assert_called_once_with(self.order.id)
 
-        # Stripe replays the SAME event: paid/idempotency gate means the
-        # score, flags and invoice dispatch must not change.
-        response = self._post_event(_checkout_completed_event(self.order.id))
-        self.assertEqual(response.status_code, 200)
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.fraud_score, 30)
-        self.assertEqual(self.order.fraud_notes, 'large_total')
-        self.assertTrue(self.order.is_flagged)
-        self.assertEqual(mock_task.call_count, 1)
+            # Stripe replays the SAME event: the idempotency gate means no
+            # re-evaluation, no flag re-write and no new invoice dispatch.
+            response = self._post_event(
+                _checkout_completed_event(self.order.id)
+            )
+            self.assertEqual(response.status_code, 200)
+            self.order.refresh_from_db()
+            self.assertEqual(self.order.fraud_score, 30)
+            self.assertEqual(self.order.fraud_notes, 'large_total')
+            self.assertTrue(self.order.is_flagged)
+            self.assertEqual(mock_task.call_count, 1)
+            self.assertEqual(mock_eval.call_count, 1)
 
     def test_below_threshold_order_is_paid_but_not_flagged(self, mock_task):
         order = self.make_order(
@@ -318,6 +331,47 @@ class FraudWebhookTests(FraudTestMixin, TestCase):
         self.assertEqual(self.order.fraud_score, 0)
         self.assertFalse(self.order.is_flagged)
         mock_task.assert_called_once_with(self.order.id)
+
+    @patch('payment.views.stripe_webhook_view.flag_threshold',
+           side_effect=Exception('persist blew up'))
+    def test_persist_crash_cannot_lose_the_invoice(self, _mock_thr, mock_task):
+        """Review fix 1: the persist UPDATE itself lives inside the try — a
+        crash there is logged only and the invoice still dispatches, because
+        paid=True already committed and a replay could never reach this code
+        again (updated == 0)."""
+        response = self._post_event(_checkout_completed_event(self.order.id))
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertTrue(self.order.paid)
+        self.assertEqual(self.order.fraud_score, 0)
+        self.assertFalse(self.order.is_flagged)
+        self.assertEqual(self.order.fraud_notes, '')
+        mock_task.assert_called_once_with(self.order.id)
+
+    def test_analyst_cleared_flag_survives_replay(self, mock_task):
+        """A flag cleared via the admin action must not resurrect on a
+        replayed delivery of the same event."""
+        self._post_event(_checkout_completed_event(self.order.id))
+        self.order.refresh_from_db()
+        self.assertTrue(self.order.is_flagged)
+
+        # Analyst clears the flag (direct queryset call — same as admin).
+        mark_rules_reviewed(None, None, Order.objects.filter(id=self.order.id))
+        self.order.refresh_from_db()
+        self.assertFalse(self.order.is_flagged)
+        self.assertEqual(self.order.fraud_notes,
+                         'reviewed: large_total')
+
+        # Replay: idempotency gate → no re-evaluation, no re-flag.
+        with patch('payment.views.stripe_webhook_view.evaluate') as mock_eval:
+            response = self._post_event(
+                _checkout_completed_event(self.order.id)
+            )
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertFalse(self.order.is_flagged)
+        self.assertTrue(self.order.fraud_notes.startswith('reviewed: '))
+        mock_eval.assert_not_called()
 
     def test_flagged_order_still_gets_200_flag_never_blocks(self, mock_task):
         """GUARD: nothing in this card blocks checkout/payment — a fast
