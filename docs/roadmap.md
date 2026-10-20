@@ -21,7 +21,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [x] Implement password reset
 
 ### 1.3 Payment Security
-- [ ] Add Stripe webhook signature verification
+- [x] Add Stripe webhook signature verification (implemented — card d9347bch; verified by the signed-webhook tests in `payment/tests/test_stripe_webhook.py`)
 - [x] Implement payment idempotency
 - [x] Add fraud detection
 - [x] Create refund handling
