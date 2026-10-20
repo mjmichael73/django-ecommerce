@@ -221,6 +221,22 @@ class WebhookInventoryTests(TestCase):
         mock_decrement.assert_called_once_with(self.order)
         mock_task.assert_called_once_with(self.order.id)
 
+    def test_invoice_task_still_dispatched_when_inventory_raises(
+        self, mock_decrement, mock_task
+    ):
+        # The webhook wraps the decrement call so a database error here can
+        # never skip payment_completed.delay (replays answer updated == 0,
+        # so a lost invoice would be unrecoverable).
+        mock_decrement.side_effect = Exception('inventory db down')
+
+        event = _checkout_completed_event(self.order.id)
+        response = self._deliver(event)
+
+        self.assertEqual(response.status_code, 200)
+        mock_task.assert_called_once_with(self.order.id)
+        self.order.refresh_from_db()
+        self.assertTrue(self.order.paid)
+
 
 class StockBadgeTests(TestCase):
     def setUp(self):
@@ -287,4 +303,9 @@ class InventoryAdminTests(TestCase):
         response = self.client.get(reverse('admin:shop_product_change', args=[product.id]))
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
+        # The product change form itself also renders a `stock` input, so
+        # target the variant inline specifically: its existing form is
+        # indexed 0 and carries a `variants-0-stock` field when the inline
+        # actually exposes stock.
+        self.assertIn('variants-0-stock', html)
         self.assertIn('stock', html)

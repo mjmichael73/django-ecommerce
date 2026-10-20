@@ -81,11 +81,17 @@ def stripe_webhook(request):
                         order_id,
                     )
                 # Decrement stock once, guarded by the same idempotency gate
-                # above (replays never reach this branch again). Placed before
-                # the invoice dispatch so a DB hiccup here is visible instead
-                # of silently swallowing the `.delay`; it never raises, so it
-                # cannot break the invoice ordering that exists today.
-                inventory.decrement_for_order(order)
+                # above (replays never reach this branch again). Wrapped so a
+                # database hiccup here can never skip the invoice dispatch:
+                # payment_completed.delay always runs, matching how the fraud
+                # block treats its own failures. Placed before `.delay` so a
+                # DB hiccup is visible rather than silently swallowed.
+                try:
+                    inventory.decrement_for_order(order)
+                except Exception:
+                    logger.exception(
+                        'inventory decrement failed for order %s', order_id,
+                    )
                 # Launch asynchronous task for payment completed —
                 # unconditional inside the idempotency gate, above.
                 payment_completed.delay(order.id)

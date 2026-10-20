@@ -36,7 +36,8 @@ def decrement_for_order(order) -> None:
     Builds a per-target quantity map from ``order.items`` (variant FK set ->
     variant target, else product target); skip untracked targets
     (``stock is None``). Conditional updates clamp at 0 and log a warning;
-    never raises.
+    the clamp path itself never raises, but the caller (the webhook) wraps
+    this call so a database error can never skip the invoice dispatch.
     """
     targets = {}  # model class -> {pk: total_qty}
     for item in order.items.select_related('product', 'variant').all():
