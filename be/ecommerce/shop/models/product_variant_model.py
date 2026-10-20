@@ -43,6 +43,9 @@ class ProductVariant(models.Model):
         ]
         indexes = [
             models.Index(fields=['available']),
+            # Added in Task 4: supports prefetching available variants
+            # for a product in bulk (e.g. variant select on product detail).
+            models.Index(fields=['product', 'available']),
         ]
 
     def __str__(self):
