@@ -20,7 +20,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('rating', models.PositiveSmallIntegerField(validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(5)])),
                 ('title', models.CharField(max_length=100)),
-                ('body', models.TextField(max_length=2000)),
+                ('body', models.TextField(max_length=2000, validators=[django.core.validators.MaxLengthValidator(2000)])),
                 ('approved', models.BooleanField(default=True)),
                 ('created', models.DateTimeField(auto_now_add=True)),
                 ('product', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reviews', to='shop.product')),

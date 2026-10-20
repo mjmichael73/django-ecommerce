@@ -10,7 +10,7 @@ reviews must fail at the admin/DB level until an operator removes the
 reviews explicitly. ``CASCADE`` would silently rewrite history.
 """
 from django.conf import settings
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxLengthValidator, MaxValueValidator, MinValueValidator
 from django.db import models
 
 from shop.models import Product
@@ -38,7 +38,13 @@ class ProductReview(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(5)]
     )
     title = models.CharField(max_length=100)
-    body = models.TextField(max_length=2000)
+    body = models.TextField(
+        max_length=2000,
+        # TextField does not attach a MaxLengthValidator on its own (only
+        # CharField does), so the cap is validated explicitly: Model.full_clean
+        # rejects over-long bodies from admin/shell/programmatic writes too.
+        validators=[MaxLengthValidator(2000)],
+    )
     approved = models.BooleanField(default=True)
     created = models.DateTimeField(auto_now_add=True)
 

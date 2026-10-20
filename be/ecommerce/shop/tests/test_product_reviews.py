@@ -106,6 +106,17 @@ class ProductReviewModelTests(ProductReviewFixture, TestCase):
     def test_review_count_is_int_zero_without_reviews(self):
         self.assertEqual(self.product.review_count(), 0)
 
+    def test_body_over_2000_chars_rejected_at_model_level(self):
+        # TextField does not attach a MaxLengthValidator on its own — the
+        # validator below is explicit, so admin/shell/programmatic writes
+        # are bounded the same way as the form path.
+        review = ProductReview(
+            product=self.product, user=self.user, rating=3,
+            title='T', body='x' * 2001,
+        )
+        with self.assertRaises(ValidationError):
+            review.full_clean()
+
 
 class RatingBoundTests(ProductReviewFixture, TestCase):
     def _review(self, rating):

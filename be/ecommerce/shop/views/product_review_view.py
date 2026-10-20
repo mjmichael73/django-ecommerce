@@ -16,7 +16,7 @@ from django.shortcuts import get_object_or_404, redirect
 
 from ecommerce.rate_limit import rate_limit
 from shop.forms import ProductReviewForm
-from shop.models import Product
+from shop.models import Product, ProductReview
 
 SUCCESS_MESSAGE = 'Thanks! Your review was published.'
 ALREADY_REVIEWED_MESSAGE = 'You already reviewed this product.'
@@ -40,6 +40,13 @@ def product_review(request, product_id, product_slug):
             f'{field}: {" ".join(errors)}' for field, errors in form.errors.items()
         )
         messages.error(request, f'Your review was not posted — {problems}')
+        return redirect(product.get_absolute_url())
+
+    # The one-per-user rule is mirrored early so an entirely expected user
+    # action (resubmitting) never reaches an INSERT that would violate the
+    # constraint and log a django.db.backends ERROR traceback.
+    if ProductReview.objects.filter(product=product, user=request.user).exists():
+        messages.error(request, ALREADY_REVIEWED_MESSAGE)
         return redirect(product.get_absolute_url())
 
     try:
