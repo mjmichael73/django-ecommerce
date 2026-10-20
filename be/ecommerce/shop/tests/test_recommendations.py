@@ -12,16 +12,29 @@ Covers:
 * Empty / small catalogs return [].
 * Price-range and category boundary behavior.
 * Default limit (4) and explicit limit.
+* Limit edge cases: ``limit=0`` and negative limits clamp to empty (card review).
+* ``RECOMMENDATION_PRICE_TOLERANCE`` is declared in settings (default 0.5) and
+  honoured by the helper (card review).
 * Deterministic ordering (by price distance, then name).
 * View + template integration on the product detail page.
+* Image-backed recommendations fall back to ``product.image.url`` when thumbnail
+  generation is unavailable (card review).
 * Query efficiency (bounded query count on detail).
 """
+import os
+import shutil
+import tempfile
 from decimal import Decimal
+from io import BytesIO
+from unittest import mock
 
+from django.conf import settings
+from django.core.files.base import ContentFile
 from django.db import connection
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from PIL import Image
 
 from shop.models import Category, Product
 from shop.recommendations import recommend_products
@@ -311,3 +324,155 @@ class ProductDetailRecommendationQueryCountTests(RecommendationFixture):
             'query count grew with recommendation count — N+1 regression: '
             + str([q['sql'] for q in after.captured_queries]),
         )
+
+
+# ---------------------------------------------------------------------------
+# Limit edge cases (card review finding)
+#
+# ``limit`` is a maximum count; Django's ``QuerySet.__getitem__`` raises
+# ``AssertionError`` for a negative slice and returns an empty queryset for
+# ``[:0]``. The helper clamps ``limit`` to a minimum of 0 so callers never hit an
+# internals leak — both 0 and any negative value yield an empty result, matching
+# the "maximum number of products" contract (a 0-max means none).
+# ---------------------------------------------------------------------------
+
+
+class RecommendProductsLimitEdgeCaseTests(RecommendationFixture):
+    """``recommend_products(limit=...)`` must not raise for 0 or negative."""
+
+    def test_limit_zero_returns_empty_without_raising(self):
+        results = recommend_products(self.mug, limit=0)
+        self.assertEqual(list(results), [])
+
+    def test_negative_limit_clamps_to_empty_without_raising(self):
+        # A negative limit must not propagate to QuerySet.__getitem__ (which
+        # raises AssertionError) — it is clamped to 0, so nothing is returned.
+        results = recommend_products(self.mug, limit=-1)
+        self.assertEqual(list(results), [])
+        results = recommend_products(self.mug, limit=-5)
+        self.assertEqual(list(results), [])
+
+
+# ---------------------------------------------------------------------------
+# Settings declaration (card review finding)
+# ---------------------------------------------------------------------------
+
+
+class RecommendationSettingsTests(RecommendationFixture):
+    """``RECOMMENDATION_PRICE_TOLERANCE`` must be a real Django setting."""
+
+    def test_tolerance_setting_is_declared_in_settings(self):
+        self.assertTrue(
+            hasattr(settings, 'RECOMMENDATION_PRICE_TOLERANCE'),
+            'RECOMMENDATION_PRICE_TOLERANCE must be declared in settings.py',
+        )
+
+    def test_tolerance_setting_defaults_to_half(self):
+        from ecommerce import settings as settings_module
+
+        self.assertEqual(
+            Decimal(str(settings_module.RECOMMENDATION_PRICE_TOLERANCE)),
+            Decimal('0.5'),
+        )
+
+    def test_tolerance_setting_override_via_env(self):
+        """A custom env value flows into the declared setting.
+
+        ``override_settings`` patches the lazy ``django.conf.settings`` wrapper
+        (which is what production code reads), not the raw module attribute, so
+        we read through the wrapper here.
+        """
+        from django.conf import settings as lazy_settings
+
+        original = lazy_settings.RECOMMENDATION_PRICE_TOLERANCE
+        try:
+            with override_settings(RECOMMENDATION_PRICE_TOLERANCE=Decimal('0.75')):
+                self.assertEqual(
+                    Decimal(str(lazy_settings.RECOMMENDATION_PRICE_TOLERANCE)),
+                    Decimal('0.75'),
+                )
+        finally:
+            # override_settings restores the original declared value on exit.
+            self.assertEqual(
+                Decimal(str(lazy_settings.RECOMMENDATION_PRICE_TOLERANCE)),
+                original,
+            )
+
+    def test_tolerance_is_read_from_settings_at_call_time(self):
+        """``recommend_products`` must honour an overridden tolerance value."""
+        # mug is $10; bowl $12 (dist 2), plate $15 (dist 5), expensive $100.
+        # With tolerance 0.3 the band is +/- $3, so bowl (dist 2) is in range
+        # but plate (dist 5) and expensive are not.
+        with override_settings(RECOMMENDATION_PRICE_TOLERANCE=Decimal('0.3')):
+            results = recommend_products(self.mug)
+            ids = {p.id for p in results}
+            self.assertIn(self.bowl.id, ids)
+            self.assertNotIn(self.plate.id, ids)
+            self.assertNotIn(self.expensive.id, ids)
+
+
+# ---------------------------------------------------------------------------
+# Image-backed recommendation fallback (card review finding)
+#
+# The recommendation card copies the product-detail image fallback contract:
+# ``src="{{ product.thumbnail_url|default:product.image.url }}"`` and the same
+# on the ``<noscript>`` source. When thumbnail generation is unavailable
+# (Pillow missing / image unopenable, so ``thumbnail_url`` is ``None``), the
+# rendered ``src`` must still carry a non-empty fallback URL pointing at the
+# original image rather than a bare ``src=""``.
+# ---------------------------------------------------------------------------
+
+
+def _build_test_jpeg(name='rec-test.jpg'):
+    """Tiny deterministic JPEG matching the project's image test conventions."""
+    img = Image.new('RGB', (8, 8), (200, 120, 40))
+    buf = BytesIO()
+    img.save(buf, format='JPEG', quality=90)
+    return ContentFile(buf.getvalue(), name=name)
+
+
+class RecommendationImageFallbackTests(RecommendationFixture):
+    """Image-backed recommendations fall back to the original image URL."""
+
+    def setUp(self):
+        super().setUp()
+        # Isolated MEDIA_ROOT so uploads/serve tests never touch the bind-mount.
+        self.media_root = tempfile.mkdtemp(prefix='rec-image-test-')
+        self.addCleanup(shutil.rmtree, self.media_root, True)
+        self.media_override = override_settings(MEDIA_ROOT=self.media_root)
+        self.media_override.enable()
+        self.addCleanup(self.media_override.disable)
+
+    def test_image_backed_recommendation_renders_fallback_when_thumbnail_unavailable(self):
+        """When thumbnail generation is unavailable, ``src`` falls back to the
+        product's original image URL (non-empty) instead of emptying out."""
+        from shop import image_utils
+
+        # An image-backed recommendation sibling of mug.
+        sibling = Product.objects.create(
+            category=self.home, name='Sibling', slug='sibling',
+            price=Decimal('11.00'), available=True,
+        )
+        sibling.image.save('rec-test.jpg', _build_test_jpeg(), save=True)
+        self.assertTrue(sibling.image)
+
+        url = self.mug.get_absolute_url()
+        # Simulate "thumbnail generation unavailable": get_thumbnail_url returns
+        # None (as it does when Pillow is missing or the image can't be opened).
+        with mock.patch.object(image_utils, 'get_thumbnail_url', return_value=None):
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+
+        # The fallback contract: src uses product.image.url (not a bare src="").
+        expected_fallback = sibling.image.url
+        self.assertTrue(
+            expected_fallback,
+            'expected an original image URL fallback, got empty',
+        )
+        self.assertIn(f'src="{expected_fallback}"', html,
+                      'recommendation <img src> must fall back to product.image.url')
+        # The noscript <img src> must share the same fallback.
+        noscript_section = html.split('<noscript>')[1].split('</noscript>')[0]
+        self.assertIn(f'src="{expected_fallback}"', noscript_section,
+                      'noscript <img src> must also fall back to product.image.url')

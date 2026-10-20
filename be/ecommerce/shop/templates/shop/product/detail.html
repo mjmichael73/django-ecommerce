@@ -57,9 +57,9 @@
             <a href="{{ product.get_absolute_url }}" class="product-card__link">
                 <div class="product-card__image-wrap">
                     {% if product.image %}
-                        <img class="lazy" data-src="{{ product.image.url }}" data-srcset="{% srcset product.srcset_urls %}" src="{{ product.thumbnail_url }}" alt="{{ product.name }}" width="400" height="400">
+                        <img class="lazy" data-src="{{ product.image.url }}" data-srcset="{% srcset product.srcset_urls %}" src="{{ product.thumbnail_url|default:product.image.url }}" alt="{{ product.name }}" width="400" height="400">
                         <noscript>
-                            <img src="{{ product.thumbnail_url }}" srcset="{% srcset product.srcset_urls %}" alt="{{ product.name }}" width="400" height="400">
+                            <img src="{{ product.thumbnail_url|default:product.image.url }}" srcset="{% srcset product.srcset_urls %}" alt="{{ product.name }}" width="400" height="400">
                         </noscript>
                     {% else %}
                         <img src="{% static 'img/no_image.svg' %}" alt="{{ product.name }}" width="400" height="400" loading="lazy" decoding="async">

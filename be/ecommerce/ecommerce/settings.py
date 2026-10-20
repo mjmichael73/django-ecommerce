@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
 import os
+from decimal import Decimal
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -276,6 +277,14 @@ FRAUD_BULK_QUANTITY = 50
 FRAUD_NEW_ACCOUNT_HOURS = 24
 FRAUD_NEW_ACCOUNT_TOTAL = 300
 FRAUD_COUPON_VELOCITY = 3
+
+# Recommendation engine price band (card 45ba5cfh): a recommended product must
+# be within ``RECOMMENDATION_PRICE_TOLERANCE`` (as a fraction, e.g. 0.5 = ±50%)
+# of the source product's price. Read from the environment so operators can
+# tune the "you might also like" spread without a code change; defaults to 50%.
+RECOMMENDATION_PRICE_TOLERANCE = Decimal(
+    os.environ.get('RECOMMENDATION_PRICE_TOLERANCE', '0.5')
+)
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators

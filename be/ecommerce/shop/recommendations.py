@@ -32,24 +32,24 @@ from django.conf import settings
 from django.db.models import DecimalField, ExpressionWrapper, F, Q
 from django.db.models.functions import Abs
 
-from shop.models import Product
+from shop.models import Category, Product
 
 
 def _tolerance() -> Decimal:
     """Return the price tolerance multiplier from settings (default 50 %).
 
     Read at call time so tests can override it via ``override_settings``.
+    ``RECOMMENDATION_PRICE_TOLERANCE`` is declared in settings.py with a
+    0.5 default, so no fallback is needed here.
     """
-    return Decimal(str(getattr(
-        settings, 'RECOMMENDATION_PRICE_TOLERANCE', '0.5',
-    )))
+    return Decimal(str(settings.RECOMMENDATION_PRICE_TOLERANCE))
 
 
 def recommend_products(
     product: Product,
     limit: int = 4,
     *,
-    category: Optional[object] = None,
+    category: Optional[Category] = None,
 ):
     """Return up to ``limit`` recommended products for *product*.
 
@@ -68,7 +68,9 @@ def recommend_products(
     product:
         The product being viewed.
     limit:
-        Maximum number of products to return (default 4).
+        Maximum number of products to return (default 4). A value of 0 or any
+        negative value is clamped to 0, so an empty queryset is returned without
+        raising — ``limit`` is a maximum count, not a slice offset.
     category:
         Optional override — if given, recommend from this category instead
         of ``product.category``.  Useful for tests that want to decouple the
@@ -84,6 +86,14 @@ def recommend_products(
     # An unavailable product has nothing to recommend alongside it.
     if not product.available:
         return Product.objects.none()
+
+    # ``QuerySet.__getitem__`` raises ValueError for a negative slice and
+    # returns an empty queryset for ``[:0]``. ``limit`` is a maximum count, so
+    # a non-positive value means "return nothing" — clamp it to 0 to keep the
+    # contract intentional and never leak a framework-level ValueError to
+    # callers (including the template, which passes an explicit limit nowhere
+    # but defensive code does).
+    limit = max(0, limit)
 
     target_category = category if category is not None else product.category
 

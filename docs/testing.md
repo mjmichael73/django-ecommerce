@@ -479,5 +479,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Full-text search test module `shop.tests.test_full_text_search` (card bf247ef9)
 - [x] Faceted navigation test module `shop.tests.test_facets` (card 3g83heaa)
 - [x] AJAX cart updates test module `cart.tests.test_ajax` (card 77ce5899)
-- [ ] Product recommendations test module `shop.tests.test_recommendations` (card 45ba5cfh)
+- [x] Product recommendations test module `shop.tests.test_recommendations` (card 45ba5cfh)
 - [ ] Test data fixtures created
