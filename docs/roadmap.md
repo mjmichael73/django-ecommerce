@@ -22,7 +22,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 
 ### 1.3 Payment Security
 - [ ] Add Stripe webhook signature verification
-- [ ] Implement payment idempotency
+- [x] Implement payment idempotency
 - [ ] Add fraud detection
 - [ ] Create refund handling
 

@@ -176,6 +176,28 @@ above. The reset email goes out from `DEFAULT_FROM_EMAIL`.
 | `EMAIL_BACKEND` | `django.core.mail.backends.console.EmailBackend` | Email backend (console in dev/docker; locmem under tests). |
 | `EMAIL_VERIFICATION_TOKEN_TTL` | `60 * 60 * 72` (72h) | Time-to-live for verification tokens. |
 
+## Payments
+
+### Idempotency (card 7e732hbh)
+
+Stripe delivers webhooks at-least-once and clients can retry checkout, so
+both ends of a payment are guarded without any extra persistence:
+
+- The webhook marks an order paid with one atomic conditional UPDATE
+  (`Order.objects.filter(id=order_id, paid=False).update(paid=True, ...)`).
+  Only the delivery that flips the row dispatches `payment_completed`, so
+  replays and concurrent duplicates are no-ops and never re-queue invoice
+  emails. A payment that already landed keeps its stored `stripe_id`
+  (first writer wins), and the handler still answers 200 for signature-valid
+  replays or vanished orders (400 only for bad signature / bad reference /
+  unknown order).
+- `payment_process` creates its Checkout Session with
+  `idempotency_key='order-<id>'` — deterministic per order, so Stripe dedups
+  identical creations for 24h and a crash/retry cannot charge twice.
+- `payment_process` short-circuits to `payment:completed` when the order is
+  already paid (GET and POST alike): the session id outlives the webhook, so
+  a returning user never gets a second Stripe session for a paid order.
+
 ## Design Decisions
 
 | Decision | Choice | Rationale |

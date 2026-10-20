@@ -10,6 +10,11 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 def payment_process(request):
     order_id = request.session.get('order_id', None)
     order = get_object_or_404(Order, id=order_id)
+    # A paid order must never be sent through Stripe again — the session
+    # outlives the webhook (session['order_id'] survives), so a returning
+    # user gets the completed page instead of a second checkout session.
+    if order.paid:
+        return redirect(reverse('payment:completed'))
     if request.method == "POST":
         success_url = request.build_absolute_uri(
             reverse('payment:completed')
@@ -37,7 +42,13 @@ def payment_process(request):
                     'quantity': item.quantity,
                 }
             )
-        session = stripe.checkout.Session.create(**session_data)
+        # Idempotency key is deterministic per order; Stripe dedups identical
+        # session creations under it for 24h, so a crash/retry here can never
+        # produce two checkout sessions (and thus two charges) for one order.
+        session = stripe.checkout.Session.create(
+            **session_data,
+            idempotency_key=f'order-{order.id}',
+        )
         return redirect(session.url, code=302)
     else:
         return render(request, 'payment/process.html', locals())

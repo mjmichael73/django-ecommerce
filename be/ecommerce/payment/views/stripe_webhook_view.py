@@ -34,9 +34,15 @@ def stripe_webhook(request):
                 order = Order.objects.get(id=order_id)
             except Order.DoesNotExist:
                 return HttpResponse(status=400)
-            order.paid = True
-            order.stripe_id = session.payment_intent
-            order.save()
-            # Launch asynchronous task for payment completed
-            payment_completed.delay(order.id)
+            # Idempotency: Stripe delivers webhooks at-least-once, so replays
+            # and concurrent duplicates must be no-ops. The guarded UPDATE
+            # flips paid only once (first delivery wins) and never rewrites
+            # the stripe_id recorded by that first payment.
+            updated = Order.objects.filter(id=order_id, paid=False).update(
+                paid=True,
+                stripe_id=session.payment_intent,
+            )
+            if updated == 1:
+                # Launch asynchronous task for payment completed
+                payment_completed.delay(order.id)
     return HttpResponse(status=200)

@@ -102,6 +102,7 @@ Healthcheck: `celery -A ecommerce inspect ping`
 
 - **Checkout Session**: Created on order placement
 - **Webhook**: `/payment/webhook/` handles `checkout.session.completed`
+- **Idempotency**: webhook application is idempotent — one atomic paid transition, first payment wins, replays never re-queue invoice emails; checkout sessions carry `idempotency_key='order-<id>'` and paid orders short-circuit to the completed page (card 7e732hbh)
 - **Test keys**: Set `STRIPE_*` in `.env` for local development
 - **Stripe CLI**: Use for local webhook forwarding
 
