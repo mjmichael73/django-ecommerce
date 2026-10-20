@@ -30,13 +30,17 @@ def payment_process(request):
             'line_items': []
         }
         for item in order.items.all():
+            line_item_name = (
+                f'{item.product.name} — {item.variant.name}'
+                if item.variant_id else item.product.name
+            )
             session_data['line_items'].append(
                 {
                     'price_data': {
                         'unit_amount': int(item.price * Decimal('100')),
                         'currency': 'usd',
                         'product_data': {
-                            'name': item.product.name,
+                            'name': line_item_name,
                         }
                     },
                     'quantity': item.quantity,

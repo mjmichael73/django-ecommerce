@@ -230,6 +230,29 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
     -v "$PWD/be/ecommerce:/app" web python manage.py test shop.tests -v2
 ```
 
+### Product variant tests (card g99ha567)
+
+```python
+# shop/tests/test_product_variants.py — one-dimensional product variants
+# Model: unit_price() override vs. product-price fallback, __str__, the
+# partial per-product SKU constraint (many blanks allowed, duplicates not).
+# Form: the optional variant selector only exists when a variants queryset is
+# passed and renders as a <select> on the detail page; a plain product keeps
+# the historical quantity/override-only form. Cart: plain entries keep their
+# exact two-key shape, variant lines are separate '<pid>:<vid>' entries with
+# the variant price snapshot, two variants are two lines, remove/override
+# target one line, iteration attaches product + variant, totals sum lines;
+# cross-product, unavailable and non-numeric variant ids degrade to a plain
+# line (no 500). Orders: checkout stores the variant and effective price, a
+# variant-less order stores NULL, and deleting the variant keeps the order
+# line (SET_NULL + price snapshot). Stripe: the mocked Session.create line
+# item name becomes '<product> — <variant>' and plain names are unchanged.
+# Admin: the product change form carries the variant tabular inline.
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
+    -v "$PWD/be/ecommerce:/app" web python manage.py test \
+    shop.tests.test_product_variants -v2
+```
+
 ## Integration Tests
 
 ### Full Flow Tests
@@ -372,4 +395,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Fraud detection test module `orders.tests.test_fraud` (card 832hc4eg)
 - [x] Refund handling test module `payment.tests.test_refunds` (card a3cg42c4)
 - [x] Product media test module `shop.tests.test_product_media` (card ga4e3hg5)
+- [x] Product variant test module `shop.tests.test_product_variants` (card g99ha567)
 - [ ] Test data fixtures created

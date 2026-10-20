@@ -143,6 +143,26 @@ from the root list page and from a nested detail page such as `/<id>/<slug>/`
   must have both trees mounted readable (the shared `media_data` volume and the
   collected static of the web image).
 
+## Product variants (card g99ha567)
+
+`ProductVariant` (`shop.models`) is one free-text variation of a product —
+a single dimension such as `"Red / M"`, not a multi-attribute matrix. Its
+`price` is an override: `NULL` means the variant costs exactly what the product
+costs, and everything downstream (cart entry snapshot, `OrderItem.price`,
+Stripe `unit_amount`) reads the effective `variant.unit_price()` rather than
+`variant.price`. `sku` is optional and unique per product only when filled
+(`product_variant_sku_unique` partial constraint, so blank SKUs never collide).
+
+The session cart stays keyed by product for plain lines (`str(product.id)`,
+entry dict still just `quantity`/`price`) and gains separate variant lines keyed
+`'<product_id>:<variant_id>'` with `variant_id`/`variant_name` alongside the
+price snapshot — so pre-variant carts and existing orders keep working
+unchanged, and the two variants of one product are two independent lines.
+
+`OrderItem.variant` is a nullable FK with `on_delete=SET_NULL`: deleting or
+replacing a variant keeps order history intact because the line's `price`
+snapshot stays. Variants are edited inline on the product admin change form.
+
 ## Authentication
 
 ### Email verification (card d7ac2957)

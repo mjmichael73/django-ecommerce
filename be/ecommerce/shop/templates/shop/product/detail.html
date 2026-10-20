@@ -21,6 +21,13 @@
                     {{ cart_product_form.quantity.label_tag }}
                     {{ cart_product_form.quantity }}
                 </div>
+                {% if cart_product_form.variant %}
+                <div class="quantity-row">
+                    {{ cart_product_form.variant.label_tag }}
+                    {{ cart_product_form.variant }}
+                </div>
+                <p class="page-head__crumb" style="margin:0">The default option keeps the product price.</p>
+                {% endif %}
                 {{ cart_product_form.override }}
                 <input type="submit" value="Add to cart">
             </div>

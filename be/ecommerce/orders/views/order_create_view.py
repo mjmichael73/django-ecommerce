@@ -22,7 +22,8 @@ def order_create(request):
                     order=order,
                     product=item['product'],
                     price=item['price'],
-                    quantity=item['quantity']
+                    quantity=item['quantity'],
+                    variant_id=item.get('variant_id'),
                 )
             cart.clear()
             order_created.delay(order.id)

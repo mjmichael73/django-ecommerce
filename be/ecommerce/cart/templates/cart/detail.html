@@ -41,17 +41,26 @@ Your cart · Studio Market
                 <img src="{% if product.image %}{{ product.image.url }}{% else %}{% static 'img/no_image.svg' %}{% endif %}" alt="">
               </a>
             </td>
-            <td><strong>{{ product.name }}</strong></td>
+            <td>
+              <strong>{{ product.name }}</strong>
+              {% if item.variant %}
+                <div class="page-head__crumb">{{ item.variant.name }}</div>
+              {% elif item.variant_name %}
+                <div class="page-head__crumb">{{ item.variant_name }}</div>
+              {% endif %}
+            </td>
             <td>
               <form action="{% url 'cart:cart_add' product.id %}" method="post">
                 {{ item.update_quantity_form.quantity }}
                 {{ item.update_quantity_form.override }}
+                <input type="hidden" name="variant_id" value="{{ item.variant_id|default:'' }}">
                 <input type="submit" value="Update">
                 {% csrf_token %}
               </form>
             </td>
             <td>
               <form action="{% url 'cart:cart_remove' product.id %}" method="post">
+                <input type="hidden" name="variant_id" value="{{ item.variant_id|default:'' }}">
                 <input type="submit" value="Remove">
                 {% csrf_token %}
               </form>
