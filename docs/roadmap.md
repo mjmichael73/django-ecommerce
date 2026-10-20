@@ -31,7 +31,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 ### 2.1 Product Management
 - [x] Add product images upload (card ga4e3hg5; uploaded images served absolute under `/media/`, see `shop/tests/test_product_media.py`)
 - [x] Implement product variants (card g99ha567; `shop/tests/test_product_variants.py`)
-- [ ] Add inventory tracking
+- [x] Add inventory tracking (card 44ge8hgb; `shop/tests/test_inventory.py`)
 - [ ] Create product reviews
 
 ### 2.2 Search & Discovery

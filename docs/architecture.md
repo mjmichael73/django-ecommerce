@@ -163,6 +163,26 @@ unchanged, and the two variants of one product are two independent lines.
 replacing a variant keeps order history intact because the line's `price`
 snapshot stays. Variants are edited inline on the product admin change form.
 
+### Inventory tracking (card 44ge8hgb)
+
+`Product.stock` and `ProductVariant.stock` are nullable `PositiveIntegerField`s;
+`NULL` means "untracked" — the row is always sellable and existing un-varianted
+data is unaffected by the migration. Stock is decremented only on confirmed
+payment, inside the webhook's guarded ``updated == 1`` branch
+(`shop.inventory.decrement_for_order`), so the same idempotency gate that
+protects the invoice dispatch also makes stock decrement exactly once per order
+(replays never double-decrement). Variant lines decrement variant stock; plain
+lines decrement product stock.
+
+The decrement is a conditional ``UPDATE ... WHERE stock >= quantity`` with
+``F()``, so stock never goes negative: an already-sold-through row is clamped
+to ``0`` with a warning and never raises. Availability (``available``) is NOT
+auto-flipped when stock hits 0 — it stays a merchandising decision; stock only
+feeds the ``is_in_stock()`` helper and the in-stock / sold-out badge on the
+product detail page. There is no reservation system and no decrement at
+cart/checkout time (a documented limitation); concurrent takers have a
+theoretical under-count window, accepted here for simplicity.
+
 ## Authentication
 
 ### Email verification (card d7ac2957)
