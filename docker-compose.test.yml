@@ -1,12 +1,18 @@
+# Test override — suppresses long-running services that have no part in a
+# test run. Compose's ``scale: 0`` (not swarm ``deploy.replicas: 0``, which
+# is ignored by ``docker compose``) is the supported way to zero out a service,
+# so rabbitmq / celery-worker / flower never start and their ports do not
+# collide with the shared dev stack.
 services:
   rabbitmq:
-    deploy:
-      replicas: 0
+    scale: 0
+    healthcheck:
+      disable: true
   web:
     depends_on: {}
   celery-worker:
-    deploy:
-      replicas: 0
+    scale: 0
+    healthcheck:
+      disable: true
   flower:
-    deploy:
-      replicas: 0
+    scale: 0

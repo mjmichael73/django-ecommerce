@@ -10,7 +10,7 @@ Non-AJAX POSTs keep the original 302 → ``cart:cart_detail`` behaviour.
 """
 from decimal import Decimal
 
-from django.test import Client, TestCase
+from django.test import Client, RequestFactory, TestCase
 from django.urls import reverse
 
 from cart.utils import Cart
@@ -193,6 +193,21 @@ class AjaxCartDetailTests(AjaxCartFixture):
         self.assertEqual(body['total_items'], 0)
         self.assertEqual(body['total'], '0.00')
 
+    def test_ajax_summary_includes_subtotal_and_discount(self):
+        """JSON always carries subtotal and discount, even without a coupon."""
+        self.client.post(
+            reverse('cart:cart_add', args=[self.product.id]),
+            {'quantity': 2},
+        )
+        response = self.client.get(
+            reverse('cart:cart_detail'),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        body = response.json()
+        self.assertEqual(body['subtotal'], '84.00')
+        self.assertEqual(body['discount'], '0.00')
+        self.assertEqual(body['total'], '84.00')
+
 
 class NonAjaxCartCompatTests(AjaxCartFixture):
     """Non-AJAX POSTs keep the original 302 redirect behaviour."""
@@ -238,6 +253,35 @@ class NonAjaxCartCompatTests(AjaxCartFixture):
         self.assertEqual(response['Content-Type'], 'application/json')
         body = response.json()
         self.assertTrue(body['ok'])
+
+
+class AjaxCsrfTests(AjaxCartFixture):
+    """AJAX POSTs without a valid CSRF token are rejected with 403."""
+
+    def setUp(self):
+        super().setUp()
+        # enforce_csrf_checks=True makes the client reject CSRF-less POSTs,
+        # mirroring a browser's behaviour — matches the convention in
+        # accounts/tests/test_csrf_rotation.py.
+        self.csrf_client = Client(enforce_csrf_checks=True)
+
+    def test_ajax_add_without_csrf_returns_403(self):
+        response = self.csrf_client.post(
+            reverse('cart:cart_add', args=[self.product.id]),
+            {'quantity': 1},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            HTTP_ACCEPT='application/json',
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_ajax_remove_without_csrf_returns_403(self):
+        response = self.csrf_client.post(
+            reverse('cart:cart_remove', args=[self.product.id]),
+            {},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            HTTP_ACCEPT='application/json',
+        )
+        self.assertEqual(response.status_code, 403)
 
 
 class AjaxCartTemplateTests(AjaxCartFixture):

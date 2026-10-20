@@ -10,12 +10,17 @@ from django.http import JsonResponse
 
 
 def cart_summary_json(cart):
-    """Build the JSON body for an AJAX cart response."""
+    """Build the JSON body for an AJAX cart response.
+
+    Includes ``subtotal`` and ``discount`` so the client can patch the
+    individual line items in the cart detail table, not just the grand total.
+    """
     return {
         'ok': True,
         'total': as_price(cart.get_total_price_after_discount()),
         'total_items': len(cart),
         'subtotal': as_price(cart.get_total_price()),
+        'discount': as_price(cart.get_discount()),
     }
 
 

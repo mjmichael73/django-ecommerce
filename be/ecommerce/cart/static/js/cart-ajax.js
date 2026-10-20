@@ -4,7 +4,8 @@
  * Intercepts the add-to-cart (product detail + cart update forms) and
  * remove-from-cart forms so they POST via fetch() instead of full-page
  * submission. On success the cart badge, cart total, and (when on the
- * cart detail page) the cart table are patched from the JSON contract.
+ * cart detail page) the cart table — including subtotal and discount
+ * rows — are patched from the JSON contract.
  *
  * Forms that do *not* carry the ``data-cart-add`` / ``data-cart-remove``
  * markers (e.g. the coupon form, the checkout button) keep their
@@ -53,6 +54,21 @@
     if (grandTotal) {
       grandTotal.textContent = '$' + json.total;
     }
+    // Patch subtotal and discount rows when present (cart detail page).
+    var subtotalEl = document.getElementById('cart-subtotal');
+    if (subtotalEl) {
+      subtotalEl.textContent = '$' + json.subtotal;
+    }
+    var discountEl = document.getElementById('cart-discount');
+    if (discountEl) {
+      var discount = parseFloat(json.discount) || 0;
+      if (discount > 0) {
+        discountEl.textContent = '-$' + json.discount;
+        discountEl.style.display = '';
+      } else {
+        discountEl.style.display = 'none';
+      }
+    }
   }
 
   function showError(message, errors) {
@@ -89,17 +105,13 @@
     }
   }
 
-  function isAjaxResponse(resp) {
-    return resp.headers.get('Content-Type') &&
-      resp.headers.get('Content-Type').indexOf('application/json') !== -1;
-  }
-
   function handleAddSubmit(form) {
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var url = form.action;
+      // FormData already includes every form control, including the quantity
+      // select — no need to append it again.
       var data = new FormData(form);
-      data.append('quantity', form.querySelector('[name="quantity"]').value);
 
       fetch(url, {
         method: 'POST',
