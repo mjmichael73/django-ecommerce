@@ -103,5 +103,57 @@
         <p class="page-head__crumb">{% if query %}No products match your search.{% elif facet_selection.is_active %}No products match the selected filters.{% else %}No products in this category yet.{% endif %}</p>
         {% endfor %}
     </div>
+    {% if page_obj.paginator.count > products_per_page %}
+    <nav class="pagination" role="navigation" aria-label="Catalog pagination">
+        <ul class="pagination__list">
+            {% if page_obj.has_previous %}
+            <li class="pagination__item">
+                <a class="pagination__link"
+                   href="?{% build_page_query request.GET 1 %}"
+                   aria-label="First page">First</a>
+            </li>
+            <li class="pagination__item">
+                <a class="pagination__link"
+                   href="?{% build_page_query request.GET page_obj.previous_page_number %}"
+                   aria-label="Previous page">Previous</a>
+            </li>
+            {% else %}
+            <li class="pagination__item pagination__item--disabled" aria-hidden="true">
+                <span class="pagination__link">Previous</span>
+            </li>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+            {% if num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="pagination__item{% if num == page_obj.number %} pagination__item--current{% endif %}">
+                {% if num == page_obj.number %}
+                <span class="pagination__link" aria-current="page">{{ num }}</span>
+                {% else %}
+                <a class="pagination__link" href="?{% build_page_query request.GET num %}">{{ num }}</a>
+                {% endif %}
+            </li>
+            {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <li class="pagination__item">
+                <a class="pagination__link"
+                   href="?{% build_page_query request.GET page_obj.next_page_number %}"
+                   aria-label="Next page">Next</a>
+            </li>
+            <li class="pagination__item">
+                <a class="pagination__link"
+                   href="?{% build_page_query request.GET page_obj.paginator.num_pages %}"
+                   aria-label="Last page">Last</a>
+            </li>
+            {% else %}
+            <li class="pagination__item pagination__item--disabled" aria-hidden="true">
+                <span class="pagination__link">Next</span>
+            </li>
+            {% endif %}
+        </ul>
+        <p class="pagination__summary" aria-live="polite">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </p>
+    </nav>
+    {% endif %}
 </div>
 {% endblock %}
