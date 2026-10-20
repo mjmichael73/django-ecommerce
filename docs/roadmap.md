@@ -49,8 +49,8 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 ## Phase 3: Performance
 
 ### 3.1 Caching
-- [ ] Add Redis caching for product listings
-- [ ] Implement cache invalidation
+- [x] Add Redis caching for product listings (card 29b8eadg)
+- [x] Implement cache invalidation via signals (card 29b8eadg)
 - [ ] Add CDN for static files
 - [ ] Optimize database queries
 

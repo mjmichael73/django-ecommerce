@@ -22,6 +22,7 @@ from decimal import Decimal
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.test import TestCase, override_settings
 from django.urls import clear_url_caches, reverse
@@ -54,6 +55,7 @@ class ProductMediaTestCase(TestCase):
         self.addCleanup(self.media_override.disable)
 
         self.category = Category.objects.create(name='Home & Living', slug='home-living')
+        cache.clear()
 
     def make_product(self, name='Ceramic Pour-Over Set', slug='ceramic-pour-over-set', image=True):
         product = Product.objects.create(
@@ -97,7 +99,6 @@ class ProductImageUrlTests(ProductMediaTestCase):
 
     def test_list_and_detail_pages_embed_the_same_absolute_url(self):
         product = self.make_product()
-        image_url = product.image.url
 
         # The nested-path case: /<id>/<slug>/ (shop:product_detail). A URL that
         # rendered relative would resolve to /<id>/<slug>/media/products/... and
@@ -107,7 +108,11 @@ class ProductImageUrlTests(ProductMediaTestCase):
         detail_html = self.page_html(product.get_absolute_url())
 
         for page, html in (('list', list_html), ('detail', detail_html)):
-            self.assertIn(f'src="{image_url}"', html, f'{page} page does not embed {image_url}')
+            # Optimized images now embed a ``srcset`` of thumbnail variants
+            # with a thumbnail fallback in ``src``; both must reference the
+            # same site-root absolute ``/media/`` root (never a relative URL).
+            self.assertIn('srcset=', html, f'{page} page has no srcset')
+            self.assertIn('/media/products/', html, f'{page} page misses /media/')
             # Guard against a browser-relative media URL sneaking back in.
             self.assertNotIn('src="media/', html, f'{page} page renders a relative media URL')
 

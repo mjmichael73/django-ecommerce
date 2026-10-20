@@ -66,3 +66,15 @@ class Product(models.Model):
     def review_count(self):
         """Number of approved reviews (an int, 0 when there are none)."""
         return self.reviews.exclude(approved=False).count()
+
+    @property
+    def thumbnail_url(self):
+        """URL to the 300px grid thumbnail, generated on demand."""
+        from shop.image_utils import get_thumbnail_url
+        return get_thumbnail_url(self.image, 'thumb')
+
+    @property
+    def srcset_urls(self):
+        """``[(url, width), ...]`` for responsive ``srcset`` attributes."""
+        from shop.image_utils import get_srcset_urls
+        return get_srcset_urls(self.image)
