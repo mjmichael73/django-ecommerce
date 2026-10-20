@@ -19,6 +19,7 @@
       <a href="{% url 'google_login' %}">Continue with Google</a>
     </p>
     {% endif %}
+    <p class="auth-panel__footer"><a href="{% url 'accounts:password_reset' %}">Forgot your password?</a></p>
     <p class="auth-panel__footer">No account? <a href="{% url 'accounts:register' %}">Register</a></p>
   </div>
 </div>

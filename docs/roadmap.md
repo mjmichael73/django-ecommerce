@@ -18,7 +18,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [ ] Add user registration/login
 - [x] Implement social authentication
 - [x] Add email verification
-- [ ] Implement password reset
+- [x] Implement password reset
 
 ### 1.3 Payment Security
 - [ ] Add Stripe webhook signature verification

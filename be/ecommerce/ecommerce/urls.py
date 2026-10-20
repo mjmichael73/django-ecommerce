@@ -3,6 +3,8 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+from accounts.urls import password_reset_confirm_view
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls', namespace='accounts')),
@@ -11,6 +13,15 @@ urlpatterns = [
     path('payment/', include('payment.urls', namespace='payment')),
     path('coupons/', include('coupons.urls', namespace='coupons')),
     path('', include('shop.urls', namespace='shop')),
+    # Django's built-in reset email (registration/password_reset_email.html)
+    # reverses the *bare* name ``password_reset_confirm``. Accounts' URLs are
+    # namespaced, so the emailed link needs an unnamespaced alias for that name.
+    # Same path and view as ``accounts:password_reset_confirm`` above.
+    path(
+        'accounts/reset/<uidb64>/<token>/',
+        password_reset_confirm_view,
+        name='password_reset_confirm',
+    ),
 ]
 
 # Social authentication (card hhde4h24): allauth's URLs live under the same
