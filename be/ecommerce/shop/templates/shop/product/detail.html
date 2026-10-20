@@ -1,12 +1,17 @@
 {% extends "shop/base.html" %}
 {% load static %}
+{% load media_tags %}
 {% block title %}
 {{ product.name }} · Studio Market
 {% endblock %}
 {% block content %}
 <article class="product-detail">
     <div class="product-detail__media">
-        <img src="{% if product.image %}{{ product.image.url }}{% else %}{% static 'img/no_image.svg' %}{% endif %}" alt="{{ product.name }}" width="600" height="600">
+        {% if product.image %}
+            <img srcset="{% srcset product.srcset_urls %}" src="{{ product.thumbnail_url|default:product.image.url }}" alt="{{ product.name }}" width="600" height="600" loading="lazy" decoding="async">
+        {% else %}
+            <img src="{% static 'img/no_image.svg' %}" alt="{{ product.name }}" width="600" height="600">
+        {% endif %}
     </div>
     <div class="product-detail__info">
         <p class="category-pill">

@@ -104,6 +104,8 @@ def _product_to_dict(product):
         'slug': product.slug,
         'price': str(product.price),
         'image_url': product.image.url if product.image else None,
+        'thumbnail_url': product.thumbnail_url if product.image else None,
+        'srcset_urls': product.srcset_urls if product.image else [],
     }
 
 
@@ -119,6 +121,8 @@ def _cached_product_to_obj(d):
         slug=d['slug'],
         price=d['price'],
         image_url=d['image_url'],
+        thumbnail_url=d.get('thumbnail_url'),
+        srcset_urls=d.get('srcset_urls', []),
     )
 
 
@@ -129,16 +133,22 @@ class _ProductProxy:
     ``price``, ``get_absolute_url``, ``image`` (with a ``url`` attr).
     """
 
-    def __init__(self, id, name, slug, price, image_url):
+    def __init__(self, id, name, slug, price, image_url, thumbnail_url=None, srcset_urls=None):
         self.id = id
         self.name = name
         self.slug = slug
         self.price = price
         self.image_url = image_url
+        self.thumbnail_url = thumbnail_url
+        self._srcset_urls = srcset_urls or []
 
     def get_absolute_url(self):
         from django.urls import reverse
         return reverse('shop:product_detail', args=[self.id, self.slug])
+
+    @property
+    def srcset_urls(self):
+        return self._srcset_urls
 
     @property
     def image(self):
