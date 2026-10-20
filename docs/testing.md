@@ -294,6 +294,23 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
 docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test shop.tests.test_full_text_search -v2
 ```
 
+
+### AJAX cart tests (card 77ce5899)
+
+```python
+# cart/tests/test_ajax.py — AJAX add/remove/update with JSON responses
+# Tests that cart_add, cart_remove, and cart_detail respond to AJAX requests
+# (X-Requested-With: XMLHttpRequest or Accept: application/json) with a JSON
+# contract carrying total, total_items, subtotal, discount, and product_name,
+# while non-AJAX POSTs keep the original 302 redirect to cart:cart_detail.
+# Also covers invalid input (400 with form errors), unknown products (404),
+# missing CSRF token (403), and template data attributes that the static JS
+# hooks into.
+docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm \
+    -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -e SECRET_KEY="test-secret-key-for-running-tests-only" \
+    -v "$PWD/be/ecommerce:/app" web python manage.py test cart.tests.test_ajax -v2
+```
+
 ## Integration Tests
 
 ### Full Flow Tests
@@ -441,4 +458,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Product reviews test module `shop.tests.test_product_reviews` (card bd8f759h)
 - [x] Full-text search test module `shop.tests.test_full_text_search` (card bf247ef9)
 - [x] Faceted navigation test module `shop.tests.test_facets` (card 3g83heaa)
+- [x] AJAX cart updates test module `cart.tests.test_ajax` (card 77ce5899)
 - [ ] Test data fixtures created

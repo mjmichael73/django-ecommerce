@@ -1,0 +1,20 @@
+# Test override — suppresses long-running services that have no part in a
+# test run. Docker Compose profiles are the supported mechanism: by
+# assigning rabbitmq / celery-worker / flower to the "celery" profile and
+# never enabling it, those services never start during `docker compose up`
+# or `docker compose run`, and their ports do not collide with the shared
+# dev stack. The web service drops its dependency on rabbitmq (set to
+# required:false on the base depends_on) so it can start without rabbitmq
+# being available. See docs/testing.md for the exact test command.
+services:
+  rabbitmq:
+    profiles: ["celery"]
+  web:
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+        required: false
+  celery-worker:
+    profiles: ["celery"]
+  flower:
+    profiles: ["celery"]

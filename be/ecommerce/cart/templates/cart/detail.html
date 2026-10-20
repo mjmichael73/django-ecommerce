@@ -35,7 +35,7 @@ Your cart · Studio Market
     <tbody>
       {% for item in cart %}
         {% with product=item.product %}
-          <tr>
+          <tr data-cart-line data-key="{{ item.variant_id|default:'' }}">
             <td>
               <a href="{{ product.get_absolute_url }}">
                 <img src="{% if product.image %}{{ product.image.url }}{% else %}{% static 'img/no_image.svg' %}{% endif %}" alt="">
@@ -50,7 +50,7 @@ Your cart · Studio Market
               {% endif %}
             </td>
             <td>
-              <form action="{% url 'cart:cart_add' product.id %}" method="post">
+              <form action="{% url 'cart:cart_add' product.id %}" method="post" data-cart-add>
                 {{ item.update_quantity_form.quantity }}
                 {{ item.update_quantity_form.override }}
                 <input type="hidden" name="variant_id" value="{{ item.variant_id|default:'' }}">
@@ -59,14 +59,14 @@ Your cart · Studio Market
               </form>
             </td>
             <td>
-              <form action="{% url 'cart:cart_remove' product.id %}" method="post">
+              <form action="{% url 'cart:cart_remove' product.id %}" method="post" data-cart-remove>
                 <input type="hidden" name="variant_id" value="{{ item.variant_id|default:'' }}">
                 <input type="submit" value="Remove">
                 {% csrf_token %}
               </form>
             </td>
-            <td class="num">${{ item.price }}</td>
-            <td class="num">${{ item.total_price }}</td>
+            <td class="num line-unit-price">${{ item.price }}</td>
+            <td class="num line-total">${{ item.total_price }}</td>
           </tr>
         {% endwith %}
       {% endfor %}
@@ -74,17 +74,17 @@ Your cart · Studio Market
         <tr class="subtotal">
           <td>Subtotal</td>
           <td colspan="4"></td>
-          <td class="num">${{ cart.get_total_price|floatformat:2 }}</td>
+          <td class="num" id="cart-subtotal">${{ cart.get_total_price|floatformat:2 }}</td>
         </tr>
         <tr>
-          <td colspan="5">“{{ cart.coupon.code }}” ({{ cart.coupon.discount }}% off)</td>
-          <td class="num neg">−${{ cart.get_discount|floatformat:2 }}</td>
+          <td colspan="5">“{{ cart.coupon.code }}" ({{ cart.coupon.discount }}% off)</td>
+          <td class="num neg" id="cart-discount">−${{ cart.get_discount|floatformat:2 }}</td>
         </tr>
       {% endif %}
       <tr class="total">
         <td>Total</td>
         <td colspan="4"></td>
-        <td class="num">${{ cart.get_total_price_after_discount|floatformat:2 }}</td>
+        <td class="num" id="cart-grand-total">${{ cart.get_total_price_after_discount|floatformat:2 }}</td>
       </tr>
     </tbody>
   </table>

@@ -13,6 +13,8 @@ be/ecommerce/*/utils/__pycache__/
 be/ecommerce/*/templatetags/__pycache__/
 be/ecommerce/*/helpers/__pycache__/
 be/ecommerce/products
+# Generated collectstatic bundles — regenerated on build/test, not source.
+be/ecommerce/static/js/
 */__pycache__
 __pycache__/
 db.sqlite3
