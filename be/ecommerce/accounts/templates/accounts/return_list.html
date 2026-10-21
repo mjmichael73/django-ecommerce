@@ -1,0 +1,42 @@
+{% extends "shop/base.html" %}
+
+{% block title %}Your returns · Studio Market{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="page-head__title">Your return requests</h1>
+  <p class="page-head__crumb"><a href="{% url 'accounts:order_list' %}">← Back to all orders</a></p>
+</div>
+
+{% if return_requests %}
+<div class="order-history">
+  <table class="order-history__table">
+    <thead>
+      <tr>
+        <th>Return #</th>
+        <th>Order</th>
+        <th>Reason</th>
+        <th>Status</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for rr in return_requests %}
+      <tr>
+        <td>#{{ rr.id }}</td>
+        <td><a href="{% url 'accounts:order_detail' rr.order.id %}">Order #{{ rr.order.id }}</a></td>
+        <td>{{ rr.reason }}</td>
+        <td>{{ rr.get_status_display }}</td>
+        <td>{{ rr.created|date:"M j, Y" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="panel panel--narrow">
+  <p class="status-hero">no return requests</p>
+  <p class="status-hero__sub">You haven't submitted any return requests yet.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -110,6 +110,7 @@ INSTALLED_APPS = [
     'payment.apps.PaymentConfig',
     'coupons.apps.CouponsConfig',
     'accounts.apps.AccountsConfig',
+    'returns.apps.ReturnsConfig',
 ]
 
 MIDDLEWARE = [
@@ -258,6 +259,7 @@ RATE_LIMIT_EMAIL_VERIFY = (5, 3600)
 RATE_LIMIT_PASSWORD_RESET = (5, 3600)
 RATE_LIMIT_REVIEW = (10, 3600)
 RATE_LIMIT_TRACKING = (20, 3600)
+RATE_LIMIT_RETURN = (5, 3600)
 
 # Accept X-Forwarded-For for rate-limit buckets only when Django really sits
 # behind a proxy that writes it — the same flag that enables
