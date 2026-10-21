@@ -286,6 +286,32 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
 ```
 
 
+### Integration tests (card e574da32)
+
+```python
+# orders/tests/test_integration.py — end-to-end cart -> orders -> payment -> coupons
+# Drives the real view layer (cart_add, coupon_apply, order_create, payment_process,
+# stripe_webhook) via HTTP POST/GET across the full purchase flow. Stripe Checkout
+# Session.create and the Celery order_created / payment_completed tasks are mocked
+# exactly as the per-app unit tests do. Rate-limit ceilings are overridden to a
+# per-process LocMem ceiling so multi-POST flows never hit 429. Covers: guest
+# checkout (order created, cart cleared, task enqueued); Stripe session creation
+# with idempotency_key + line items; webhook marks paid + single invoice
+# dispatch + idempotent replay; authenticated checkout sets order.user FK;
+# variant line-item price snapshot + Stripe line-item name 'Product — Variant';
+# mixed plain + variant cart; coupon apply (valid / invalid / expired); coupon
+# discount math on Cart; authenticated purchase -> order history visibility;
+# payment_process short-circuit on paid orders; unpaid order creates Stripe
+# session with unit_amount from stored OrderItem.price.
+#
+# Note: order_create does NOT persist the coupon FK / discount onto the Order row
+# — the discount is only reflected in the cart's get_total_price_after_discount.
+# These tests pin that observed behaviour.
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
+    -v "$PWD/be/ecommerce:/app" -v media_data:/app/media web python manage.py test \
+    orders.tests.test_integration -v2
+```
+
 ### Full-text search tests (card bf247ef9)
 
 ```python
