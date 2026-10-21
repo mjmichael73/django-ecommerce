@@ -1,12 +1,18 @@
 """Django-side guard that delegates to the standalone k8s manifest validator.
 
 Card a9cea652 — Phase 5 deployment: Kubernetes manifests.
+Card 828ff8ea — Phase 5 deployment hardening: blue-green deployment.
 
 The real assertions live in ``scripts/validate_k8s_manifests.py`` (a
 standalone, Django-free script that parses YAML with ``yaml.safe_load``). This
 test module re-runs that validator through the Django test suite so it is
 exercised by ``make test`` and the CI ``test`` job — exactly like the Grafana
 dashboard tests exercise ``docker/grafana/scripts/validate_dashboards.py``.
+
+A few hermetic structural tests also live here for the blue-green assets
+(runbook existence + flip documentation, helper-script subcommands and the
+strict rollout-before-patch ordering). They parse YAML/text only — no kubectl,
+no cluster — matching the existing repo-text test style.
 
 Skip rule: the production web image (``Dockerfile``) only runs
 ``COPY be/ecommerce /app``, so neither ``k8s/`` nor ``scripts/`` exist inside
@@ -93,3 +99,77 @@ class K8sManifestsTests(SimpleTestCase):
             0,
             "scripts/validate_k8s_manifests.py reported failures — see validator output.",
         )
+
+    # ------------------------------------------------------------------
+    # Blue-green structural tests (card 828ff8ea). These are hermetic: they
+    # parse YAML/text only, never shell out to kubectl or hit a cluster.
+    # ------------------------------------------------------------------
+    def test_blue_green_runbook_exists_and_documents_flip(self):
+        """docs/blue-green.md must exist and describe the Service selector flip."""
+        runbook = REPO_ROOT / "docs" / "blue-green.md"
+        self.assertTrue(
+            runbook.is_file(),
+            "docs/blue-green.md must exist (card 828ff8ea)",
+        )
+        text = runbook.read_text(encoding="utf-8").lower()
+        self.assertIn(
+            "selector",
+            text,
+            "docs/blue-green.md must document the Service selector flip",
+        )
+        self.assertIn(
+            "flip",
+            text,
+            "docs/blue-green.md must describe flipping the selector between colors",
+        )
+
+    def test_blue_green_helper_script_exists(self):
+        """scripts/blue_green_deploy.sh must exist and be executable."""
+        script = REPO_ROOT / "scripts" / "blue_green_deploy.sh"
+        self.assertTrue(
+            script.is_file(),
+            "scripts/blue_green_deploy.sh must exist (card 828ff8ea)",
+        )
+        self.assertTrue(
+            os.access(script, os.X_OK),
+            "scripts/blue_green_deploy.sh must be executable",
+        )
+
+    def test_blue_green_helper_script_has_cutover_and_rollback(self):
+        """The helper must expose `cutover` and `rollback` subcommands."""
+        script = REPO_ROOT / "scripts" / "blue_green_deploy.sh"
+        text = script.read_text(encoding="utf-8")
+        self.assertIn("cutover", text, "helper must implement cutover")
+        self.assertIn("rollback", text, "helper must implement rollback")
+        # cutover ordering: `kubectl rollout status` MUST appear before the
+        # Service selector flip (the `flip_selector green` invocation in cutover).
+        # We match the actual command, not the doc-comment, by requiring the
+        # rollout-status command to precede the green flip call.
+        rollout_idx = text.find("kubectl rollout status", text.find("cmd_cutover"))
+        flip_idx = text.find("flip_selector green", text.find("cmd_cutover"))
+        self.assertGreater(rollout_idx, -1, "helper must run `kubectl rollout status` in cutover")
+        self.assertGreater(flip_idx, -1, "helper must flip to green in cutover")
+        self.assertLess(
+            rollout_idx,
+            flip_idx,
+            "cutover MUST run `kubectl rollout status` BEFORE `flip_selector green` "
+            "(wait for green pods to boot-migrate + pass /health/ before the traffic switch)",
+        )
+
+    def test_blue_green_selector_only_flips_between_colors(self):
+        """The flip logic must only ever set color to blue or green."""
+        script = REPO_ROOT / "scripts" / "blue_green_deploy.sh"
+        text = script.read_text(encoding="utf-8")
+        # both colors must be referenced as flip targets
+        self.assertIn("blue", text, "helper must flip back to color: blue")
+        self.assertIn("green", text, "helper must flip to color: green")
+        # the patch must target the Service, not a Deployment
+        patch_lines = [ln for ln in text.splitlines() if "kubectl patch" in ln and not ln.lstrip().startswith("#")]
+        self.assertTrue(patch_lines, "helper must contain a kubectl patch for the flip")
+        for ln in patch_lines:
+            self.assertIn("svc", ln, "selector flip must patch a Service (svc/...), not a Deployment")
+            self.assertNotIn(
+                "deploy/",
+                ln,
+                "selector flip must never patch a Deployment — only the Service selector",
+            )

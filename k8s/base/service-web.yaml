@@ -1,16 +1,25 @@
 # ClusterIP Service routing to the web Deployment. The selector matches the
 # pod labels set by deployment-web.yaml (app: ecommerce-web) so traffic lands
 # on gunicorn on container port 8000.
+#
+# Blue-green note (card 828ff8ea): the `color: blue` selector entry plus the
+# matching `color: blue` pod label on the base deployment make the shipped
+# default world BLUE. scripts/blue_green_deploy.sh performs an out-of-band
+# `kubectl patch` that flips this selector to `color: green` only after the
+# green Deployment has rolled out; it never patches any other resource — see
+# docs/blue-green.md.
 apiVersion: v1
 kind: Service
 metadata:
   name: ecommerce-web
   labels:
     app: ecommerce-web
+    color: blue
 spec:
   type: ClusterIP
   selector:
     app: ecommerce-web
+    color: blue
   ports:
     - name: http
       port: 80
