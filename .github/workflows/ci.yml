@@ -35,6 +35,14 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r ../requirements.txt
 
+      - name: makemigrations check
+        run: python manage.py makemigrations --check --no-input
+        env:
+          SECRET_KEY: ci-collectstatic-only-not-for-production
+          POSTGRES_DB: ecommerce
+          POSTGRES_USER: ecommerce
+          POSTGRES_PASSWORD: ci-build-placeholder-not-for-production
+
       - name: collectstatic
         run: python manage.py collectstatic --noinput
 

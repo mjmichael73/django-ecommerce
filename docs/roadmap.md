@@ -77,7 +77,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 ### 4.2 Deployment
 - [ ] Add Kubernetes manifests
 - [ ] Implement blue-green deployment
-- [ ] Add database migrations strategy
+- [x] Add database migrations strategy (card 65b22ag7; docs/migrations.md + CI guard)
 - [ ] Create backup procedures
 
 ### 4.3 Testing
