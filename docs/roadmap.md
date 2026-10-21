@@ -57,7 +57,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 ### 3.2 Database
 - [ ] Add database indexing
 - [x] Implement connection pooling (card a8g83e7c; `ecommerce/db_config.py`, `ecommerce/tests/test_postgres_database.py`)
-- [ ] Add read replicas
+- [x] Add read replicas (card 79e887g9; `ecommerce/db_config.py:parse_replica_urls`, `ecommerce/db_router.py:PrimaryReplicaRouter`, `ecommerce/tests/test_db_router.py`)
 - [ ] Optimize N+1 queries
 
 ### 3.3 Frontend

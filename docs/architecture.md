@@ -469,6 +469,61 @@ on `CONN_HEALTH_CHECKS` or explicitly call `django.db.close_old_connections()`
 before and after the long wait. No Celery code changes ship with this card —
 this is guidance only.
 
+## Read replicas (card 79e887g9)
+
+Optional read scaling for read-heavy workloads (catalog browsing, product
+listings, facet counts). Replicas are off by default and only activated when the
+operator sets `DB_REPLICA_URLS`.
+
+### Topology
+
+```
+               ┌─────────────────┐
+               │   Primary DB    │  writes / migrations / admin
+               │   (default)     │
+               └────────┬────────┘
+                        │  streaming replication
+              ┌─────────┴─────────┐
+              ▼                   ▼
+       ┌──────────┐        ┌──────────┐
+       │ replica_0│        │ replica_1│   reads (catalog/browse)
+       │ (random) │        │ (random) │
+       └──────────┘        └──────────┘
+```
+
+### Configuration
+
+- `DB_REPLICA_URLS` — comma-separated `postgres://user:pass@host:port/dbname`
+  URLs. Blank segments between commas are ignored. A malformed segment raises
+  `ImproperlyConfigured` at startup.
+- When unset/empty/blank → settings are **byte-identical** to today: no
+  `DATABASE_ROUTERS`, no extra aliases, no new keys.
+- When set → one alias per URL, named `replica_0`, `replica_1`, … by 0-based
+  position. Each alias has the standard Django keys (`ENGINE`, `NAME`, `USER`,
+  `PASSWORD`, `HOST`, `PORT`) and applies the same `DB_CONN_MAX_AGE` pooling
+  truth table as the primary (see `db_config.py`).
+
+### Routing table
+
+| Operation | Database |
+|-----------|----------|
+| **Reads** (`db_for_read`) | a random configured replica; `default` when no replicas are configured (router inert) |
+| **Writes** (`db_for_write`) | `default` |
+| **Relations** (`allow_relation`) | `True` between `default` and any replica alias |
+| **Migrations** (`allow_migrate`) | `True` for `default` only — never on replicas |
+
+The router (`PrimaryReplicaRouter` in `ecommerce/db_router.py`) is installed
+only when replicas are configured (`DATABASE_ROUTERS` is absent otherwise).
+
+### Staleness caveat
+
+The router does **not** provide read-after-write stickiness. A replica that is
+catching up from streaming lag may not yet see a row just written to the
+primary. Flows that must read their own write (order confirmation, payment
+status, user profile after edit) should use `QuerySet.using('default')`
+to pin the read to the primary. The read-scaled surface is the catalog/browse
+read path, where eventual consistency is acceptable.
+
 ## Security Considerations
 
 - ✅ SECRET_KEY required via Compose `${SECRET_KEY:?...}`

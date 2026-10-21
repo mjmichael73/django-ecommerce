@@ -82,6 +82,9 @@ services:
       # connections across requests; leave empty for Django's default (close
       # per request). 0 explicitly disables reuse.
       DB_CONN_MAX_AGE: ${DB_CONN_MAX_AGE:-}
+      # Optional read replicas (card 79e887g9). Comma-separated postgres URLs.
+      # Blank/empty = single primary, no routing (byte-identical to today).
+      DB_REPLICA_URLS: ${DB_REPLICA_URLS:-}
     volumes:
       - media_data:/app/media
     depends_on:
@@ -161,6 +164,9 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-}
       # Native Django persistent connections (card a8g83e7c).
       DB_CONN_MAX_AGE: ${DB_CONN_MAX_AGE:-}
+      # Optional read replicas (card 79e887g9). Comma-separated postgres URLs.
+      # Blank/empty = single primary, no routing (byte-identical to today).
+      DB_REPLICA_URLS: ${DB_REPLICA_URLS:-}
     volumes:
       - media_data:/app/media
     depends_on:
@@ -211,6 +217,9 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-}
       # Native Django persistent connections (card a8g83e7c).
       DB_CONN_MAX_AGE: ${DB_CONN_MAX_AGE:-}
+      # Optional read replicas (card 79e887g9). Comma-separated postgres URLs.
+      # Blank/empty = single primary, no routing (byte-identical to today).
+      DB_REPLICA_URLS: ${DB_REPLICA_URLS:-}
     depends_on:
       rabbitmq:
         condition: service_healthy
