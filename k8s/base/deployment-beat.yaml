@@ -1,0 +1,49 @@
+# Celery beat Deployment. Same image as web; command override runs the beat
+# scheduler loop.
+#
+# NOTE: no periodic tasks are configured by default in this repo (compose does
+# not ship a celery-beat service either). Beat therefore starts, finds no
+# schedules, and idles harmlessly. Add schedules to the Django CELERY_BEAT
+# setting when you have tasks to schedule.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecommerce-celery-beat
+  labels:
+    app: ecommerce-web        # same selector-label family as the stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ecommerce-celery-beat
+  template:
+    metadata:
+      labels:
+        app: ecommerce-celery-beat
+    spec:
+      containers:
+        - name: beat
+          image: ghcr.io/mjmichael73/django-ecommerce:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "ecommerce", "beat", "-l", "info"]
+          # comment: no periodic tasks configured by default — beat idles harmlessly
+          envFrom:
+            - configMapRef:
+                name: ecommerce-config
+            - secretRef:
+                name: ecommerce-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+          securityContext:
+            readOnlyRootFilesystem: false
+      volumes:
+        - name: media
+          emptyDir: {}                     # placeholder — see web Deployment note

@@ -1,0 +1,18 @@
+# ClusterIP Service routing to the web Deployment. The selector matches the
+# pod labels set by deployment-web.yaml (app: ecommerce-web) so traffic lands
+# on gunicorn on container port 8000.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecommerce-web
+  labels:
+    app: ecommerce-web
+spec:
+  type: ClusterIP
+  selector:
+    app: ecommerce-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP

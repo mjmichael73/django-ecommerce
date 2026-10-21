@@ -1,0 +1,50 @@
+# Celery worker Deployment. Same image as web; command override replaces the
+# gunicorn CMD so the container runs the Celery worker loop instead.
+#
+# No readiness/liveness probe: Celery workers do not expose an HTTP endpoint to
+# probe, and a transient "idle" state (waiting on the broker) is normal, not a
+# failure. Health is instead surfaced via Flower (port 5555) or the Celery
+# `inspect ping` healthcheck used in docker-compose (see docker-compose.yml
+# celery-worker.healthcheck). Add an HTTP probe here only if you expose a
+# worker-side health endpoint.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecommerce-celery-worker
+  labels:
+    app: ecommerce-web        # same selector-label family as the stack
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ecommerce-celery-worker
+  template:
+    metadata:
+      labels:
+        app: ecommerce-celery-worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/mjmichael73/django-ecommerce:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "ecommerce", "worker", "-l", "info"]
+          envFrom:
+            - configMapRef:
+                name: ecommerce-config
+            - secretRef:
+                name: ecommerce-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+          securityContext:
+            readOnlyRootFilesystem: false
+      volumes:
+        - name: media
+          emptyDir: {}                     # placeholder — see web Deployment note

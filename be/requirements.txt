@@ -56,3 +56,8 @@ wcwidth==0.2.13
 weasyprint==61.2
 webencodings==0.5.1
 zopfli==0.2.3
+# PyYAML — required by scripts/validate_k8s_manifests.py (card a9cea652).
+# Added to the app requirements so the validator's only runtime dependency is
+# available wherever this image runs; CI also installs it standalone on the
+# runner (ubuntu-latest python3 has none).
+pyyaml>=6

@@ -1,0 +1,46 @@
+# ConfigMap for non-secret Django / deployment env vars consumed by the web,
+# worker and beat Deployments via `envFrom`. Real values come from your
+# cluster's secret manager / sealed-secrets — this file ships non-sensitive
+# placeholders only and is safe to commit.
+#
+# See docs/kubernetes.md for the full env inventory (mirrored from .env.example).
+# Secret-class values (SECRET_KEY, POSTGRES_*, STRIPE_*, GOOGLE_CLIENT_SECRET,
+# SENTRY auth, etc.) live in secret.yaml and are NEVER placed here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ecommerce-config
+  labels:
+    app: ecommerce-web
+data:
+  # Django
+  DEBUG: "True"                # base default; dev/prod overlays override
+  ALLOWED_HOSTS: "localhost,127.0.0.1,web"
+
+  # Reverse proxy: trust X-Forwarded-Proto/Host when behind an ingress or proxy.
+  DJANGO_BEHIND_PROXY: "1"
+
+  # Database (shared-services PostgreSQL). Host/port are non-secret; credentials are in secret.yaml.
+  POSTGRES_DB: "ecommerce"
+  POSTGRES_USER: "ecommerce"
+  POSTGRES_HOST: "postgres"     # external service / injected host
+  POSTGRES_PORT: "5432"
+
+  # Connection pooling / read replicas (see docs/migrations.md for the
+  # migrate-concurrency contract). These are non-secret tunables.
+  DB_CONN_MAX_AGE: "60"
+  DB_REPLICA_URLS: ""          # blank = single primary, no routing
+
+  # Redis (rate-limit cache + Celery result backend) — external shared instance.
+  REDIS_CACHE_URL: "redis://redis:6379/2"
+  CELERY_BROKER_URL: "amqp://guest:guest@rabbitmq:5672//"
+  CELERY_RESULT_BACKEND: "redis://redis:6379/1"
+
+  # Observability
+  PROMETHEUS_ENABLED: ""       # "1" to expose /metrics
+  PROMETHEUS_METRICS_ALLOWED_IPS: ""
+  LOG_JSON: ""                 # unset -> JSON when DEBUG=False, plain when DEBUG=True
+  LOG_LEVEL: "INFO"
+
+  # Skip collectstatic in worker/beat boots (static is baked into the image).
+  SKIP_COLLECTSTATIC: "1"

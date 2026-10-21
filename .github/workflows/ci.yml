@@ -112,6 +112,17 @@ jobs:
         # dashboard JSON or mis-provisioned YAML even if Django tests are skipped.
         run: python3 docker/grafana/scripts/validate_dashboards.py
 
+      - name: Validate Kubernetes manifests
+        # Mirrors the Grafana validator: a standalone, Django-free script that
+        # parses every YAML under k8s/ with yaml.safe_load and asserts structural
+        # invariants (kustomization refs, probe split, envFrom, command overrides,
+        # resource limits). Vanilla python3 on the runner lacks pyyaml, so install
+        # it first. This is the CI side of the validator; the manual gate is
+        # `kubectl apply --dry-run=client -k k8s/overlays/prod` (see docs/kubernetes.md).
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 scripts/validate_k8s_manifests.py
+
       - name: Build production image (always)
         run: docker compose build web
 

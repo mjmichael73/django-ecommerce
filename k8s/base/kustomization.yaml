@@ -1,0 +1,29 @@
+# Kustomize base for the django-ecommerce store (card a9cea652).
+#
+# Overlays in ../dev and ../prod override replicas, DEBUG, resource limits and
+# secrets via patches (see their kustomization.yaml). The image anchor below
+# pins the CI-published GHCR image; overlays inherit it.
+#
+# Image source: .github/workflows/ci.yml "Publish image to GHCR" step.
+#   ghcr.io/<owner>/<repo>:<tag>
+# Owner/repo derived from origin remote: mjmichael73/django-ecommerce.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - configmap.yaml
+  - secret.yaml
+  - deployment-web.yaml
+  - deployment-worker.yaml
+  - deployment-beat.yaml
+  - service-web.yaml
+
+# Image override anchor — overlays inherit; prod overrides the tag via
+# `images: [{name, newTag}]`. Mirrors the CI GHCR publish name exactly.
+images:
+  - name: ghcr.io/mjmichael73/django-ecommerce
+    newTag: main
+    # The web/worker/beat containers all reference `ghcr.io/mjmichael73/django-ecommerce:latest`;
+    # Kustomize rewrites the image name to the anchored name + newTag. To allow
+    # overlays to override only the tag, the base uses `latest` here so a prod
+    # overlay can set newTag: <sha> without re-declaring the name.
