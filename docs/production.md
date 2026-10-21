@@ -87,13 +87,11 @@ docker compose logs -f web
 ```bash
 # Run migrations
 docker compose exec web python manage.py migrate
-
-# Create superuser
-docker compose exec web python manage.py createsuperuser
-
-# Collect static files
-docker compose exec web python manage.py collectstatic --noinput
 ```
+
+> **Migrations strategy:** see `docs/migrations.md` for the expand → migrate →
+> contract zero-downtime deploy process, rollback policy, and the per-service
+> boot-migrate behavior in `docker/entrypoint.sh`.
 
 ### 4. Configure Nginx
 
