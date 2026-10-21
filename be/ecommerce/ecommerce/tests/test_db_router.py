@@ -6,17 +6,14 @@ Covers the full truth table for ``parse_replica_urls`` and
 absent when unconfigured — tested on the builder output, not the live
 settings object, to stay hermetic).
 """
+from types import SimpleNamespace
 from unittest import mock
 
 from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase
-from django.test.utils import override_settings
 
-from ecommerce.db_config import (
-    PrimaryReplicaRouter,
-    parse_replica_urls,
-    _parse_replica_url,
-)
+from ecommerce.db_config import parse_replica_urls, _parse_replica_url
+from ecommerce.db_router import PrimaryReplicaRouter
 
 # A minimal env that satisfies postgres_database's POSTGRES_PASSWORD / POSTGRES_DB
 # requirements — used so we can exercise the *replica* parsing path which is
@@ -30,10 +27,16 @@ _POSTGRES_ENV = {
 }
 
 
-class _FakeObj:
-    """Stand-in for a Django model instance with a ``_state.db`` attribute."""
-    def __init__(self, db):
-        self._state = mock.Mock(db=db)
+def _model_like(db):
+    """Build a real-Django-shaped model instance stand-in.
+
+    Django model instances carry a ``Model._state`` attribute whose ``db``
+    field records which database the instance was loaded/saved from. Tests
+    must exercise the actual ``getattr(obj, '_state', None) → getattr(state, 'db', None)``
+    chain against that shape — not a loose ``mock.Mock`` whose every attribute
+    returns another Mock.
+    """
+    return SimpleNamespace(_state=SimpleNamespace(db=db))
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +161,7 @@ class PrimaryReplicaRouterTests(SimpleTestCase):
         aliases = {'replica_0': {}, 'replica_1': {}}
         router = PrimaryReplicaRouter(aliases)
         # Seed random so the choice is deterministic for the assertion.
-        with mock.patch('ecommerce.db_config.random.choice', return_value='replica_1'):
+        with mock.patch('ecommerce.db_router.random.choice', return_value='replica_1'):
             self.assertEqual(router.db_for_read(None), 'replica_1')
 
     def test_db_for_read_no_replicas_inert(self):
@@ -169,16 +172,16 @@ class PrimaryReplicaRouterTests(SimpleTestCase):
 
     def test_allow_relation_default_and_replica(self):
         router = PrimaryReplicaRouter({'replica_0': {}})
-        obj_default = _FakeObj('default')
-        obj_replica = _FakeObj('replica_0')
+        obj_default = _model_like('default')
+        obj_replica = _model_like('replica_0')
         self.assertTrue(router.allow_relation(obj_default, obj_replica))
         self.assertTrue(router.allow_relation(obj_replica, obj_default))
         self.assertTrue(router.allow_relation(obj_default, obj_default))
 
     def test_allow_relation_outside_db_set_is_none(self):
         router = PrimaryReplicaRouter({'replica_0': {}})
-        obj_other = _FakeObj('some_other_db')
-        obj_default = _FakeObj('default')
+        obj_other = _model_like('some_other_db')
+        obj_default = _model_like('default')
         self.assertIsNone(router.allow_relation(obj_other, obj_default))
 
     def test_allow_migrate_only_default(self):
