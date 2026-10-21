@@ -75,7 +75,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [x] Create Grafana dashboards (card 3c3b2e3a — Prometheus + Grafana optional via `--profile monitoring`, 3 dashboards for HTTP/Celery/business metrics, provisioning + validation)
 
 ### 4.2 Deployment
-- [ ] Add Kubernetes manifests
+- [x] Add Kubernetes manifests (card a9cea652; k8s/ Kustomize base + dev/prod overlays, no-cluster yaml validator + CI step, Django test module, docs/kubernetes.md)
 - [ ] Implement blue-green deployment
 - [x] Add database migrations strategy (card 65b22ag7; docs/migrations.md + CI guard)
 - [x] Create backup procedures (card 36d3gdd6; docker/backup + docs/backup-restore.md)

@@ -1,0 +1,83 @@
+# Production overlay.
+#
+# Prod intent (card a9cea652): DEBUG=0, 2+ web replicas, resource limits, NO
+# inline real secrets (the base Secret ships placeholder values only — real
+# secrets are injected by your cluster's secret manager). This overlay flips
+# DEBUG off, scales the web tier, and lets resource limits ride from the base
+# (the base already declares limits on every container).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ecommerce
+
+bases:
+  - ../base
+
+# Image anchor inherited from base. Prod deployments should override the tag
+# to a real release sha, e.g.:
+#   images:
+#     - name: ghcr.io/mjmichael73/django-ecommerce
+#       newTag: sha-99d53dc
+
+# DEBUG=False for prod (overrides base DEBUG=True).
+patches:
+  - patch: |-
+      - op: replace
+      path: /data/DEBUG
+      value: "False"
+    target:
+      kind: ConfigMap
+      name: ecommerce-config
+  - patch: |-
+      - op: replace
+      path: /data/ALLOWED_HOSTS
+      value: "ecommerce.example.com,www.ecommerce.example.com"
+    target:
+      kind: ConfigMap
+      name: ecommerce-config
+  - patch: |-
+      - op: replace
+      path: /data/PROMETHEUS_ENABLED
+      value: "1"
+    target:
+      kind: ConfigMap
+      name: ecommerce-config
+  - patch: |-
+      - op: replace
+      path: /data/LOG_JSON
+      value: "1"
+    target:
+      kind: ConfigMap
+      name: ecommerce-config
+
+replicas:
+  - name: ecommerce-web
+    count: 3
+  - name: ecommerce-celery-worker
+    count: 3
+  - name: ecommerce-celery-beat
+    count: 1
+
+# Prod hardening: tighten the web Deployment's resource limits (the base
+# limits are a floor; prod may want a tighter CPU ceiling).
+  - patch: |-
+      - op: replace
+      path: /spec/template/spec/containers/0/resources/limits
+      value:
+        cpu: 1000m
+        memory: 1Gi
+    target:
+      kind: Deployment
+      name: ecommerce-web
+  - patch: |-
+      - op: replace
+      path: /spec/template/spec/containers/0/resources/limits
+      value:
+        cpu: 2000m
+        memory: 2Gi
+    target:
+      kind: Deployment
+      name: ecommerce-celery-worker
+
+commonLabels:
+  env: prod

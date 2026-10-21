@@ -1,0 +1,26 @@
+# Dev overlay.
+#
+# Dev intent (card a9cea652): DEBUG=1, 1 web replica, placeholder secrets
+# (inherited from base — no real secrets are ever inline). This overlay only
+# scales down the web Deployment and pins DEBUG explicitly; the base
+# ConfigMap already uses DEBUG=True and placeholder secret values.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ecommerce
+
+bases:
+  - ../base
+
+# Image anchor inherited from base (ghcr.io/mjmichael73/django-ecommerce:main).
+
+replicas:
+  - name: ecommerce-web
+    count: 1
+  - name: ecommerce-celery-worker
+    count: 1
+  - name: ecommerce-celery-beat
+    count: 1
+
+commonLabels:
+  env: dev
