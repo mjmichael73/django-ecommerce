@@ -78,7 +78,11 @@ release, then it is removed.
   migration on top.
 - **`makemigrations --check --dry-run` is the CI gate.** It must exit `0` on the
   main branch. A non-zero exit means a model changed without a migration — the
-  build fails and the author adds the missing migration.
+  build fails and the author adds the missing migration. Beyond diffing model
+  state against the migration graph, `--check` also consults the `django_migrations`
+  history for consistency (`check_consistent_history`); if the database is
+  unreachable it emits a `WARNING` rather than a hard failure, so the CI step
+  still gates model-state drift without needing a live database connection.
 - **Schema, data, and backfill are separate steps.** Each migration file should
   do one thing: add/drop a column, OR backfill data, OR change a constraint.
   Keeping them separate makes each step reversible on its own.
@@ -152,12 +156,25 @@ exec "$@"
 - Both `web` and `celery-worker` start in dependency order (`celery-worker`
   `depends_on: web: condition: service_started`), so the web container's boot
   migrate lands first.
-- `django.db.backends` migrations are guarded by PostgreSQL advisory locks on
-  the `django_migrations` table. The first container to acquire the lock
-  applies pending migrations; later containers see `no-migrations-to-apply` and
-  exit cleanly. **No double-application, no race.**
-- `migrate --noinput` is idempotent by design, so a worker running it a few
-  seconds after web is harmless — it is simply a fast no-op.
+- `migrate` is idempotent by design: it consults `django_migrations` for the set
+  of already-applied migrations and applies only those recorded absent — a worker
+  that starts a few seconds after `web` simply sees `no-migrations-to-apply` and
+  exits cleanly (a fast no-op).
+- Each migration runs inside an atomic transaction (where the backend supports
+  it), so a half-applied migration cannot persist: either the transaction
+  commits the row in `django_migrations` together with the schema change, or it
+  rolls back entirely.
+- Container start-up ordering (`depends_on` in `docker-compose.yml`) plus
+  Postgres's own DDL locking serializes conflicting `ALTER TABLE` statements,
+  keeping concurrent schema writes from colliding.
+- The residual race window that remains is the near-simultaneous boot case — two
+  containers clearing the DB-wait loop at the same instant — where both could
+  attempt the same migration. This is acceptable for this stack (a single schema
+  owner, low replica count, and migrations that are additive and idempotent), and
+  the transactional + DDL-locking behavior above bounds the failure mode to a
+  harmless "already exists" or transaction rollback rather than corruption. For
+  higher-assurance scenarios, add the `MIGRATE_DISABLE`-style knob documented
+  below and run migrations from a single dedicated, human-gated deploy step.
 
 ### When a `MIGRATE_DISABLE`-style knob would be preferable
 
