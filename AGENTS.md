@@ -164,3 +164,4 @@ Key variables (see `.env.example`):
 - `docker-compose.yml` — Service definitions
 - `docker/nginx/default.conf` — Nginx reverse proxy
 - `.github/workflows/ci.yml` — CI pipeline (collectstatic check + tests; Docker image build on every run, GHCR publish on `main`)
+- `docs/migrations.md` — Database migrations strategy (zero-downtime expand/migrate/contract, rollback policy, how-to checklist)
