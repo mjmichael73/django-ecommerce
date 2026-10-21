@@ -78,16 +78,21 @@ class ProductMediaTestCase(TestCase):
 class ProductImageUrlTests(ProductMediaTestCase):
     def test_url_prefixes_are_declared_absolute(self):
         # The declared settings values (not django.conf's script-prefixed view):
-        # both prefixes must be site-root absolute, per Django's convention.
+        # MEDIA_URL must be site-root absolute; STATIC_URL may be an absolute
+        # CDN URL when STATIC_CDN_URL is set, otherwise it is site-root absolute.
         from ecommerce import settings as settings_module
 
         self.assertTrue(
             settings_module.MEDIA_URL.startswith('/'),
             f"MEDIA_URL must be site-root absolute, got {settings_module.MEDIA_URL!r}",
         )
+        # STATIC_URL is either a site-root absolute path ('/static/') or a
+        # schemed CDN URL ('https://cdn.example.com/'). A bare relative
+        # prefix is the only invalid case — it would break nested-page resolution.
+        static_url = settings_module.STATIC_URL
         self.assertTrue(
-            settings_module.STATIC_URL.startswith('/'),
-            f"STATIC_URL must be site-root absolute, got {settings_module.STATIC_URL!r}",
+            static_url.startswith('/') or '://' in static_url,
+            f"STATIC_URL must be absolute, got {static_url!r}",
         )
 
     def test_image_url_is_site_root_absolute(self):

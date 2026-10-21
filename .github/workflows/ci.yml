@@ -66,8 +66,11 @@ jobs:
         run: pip install -r ../requirements.txt
       - name: Django tests
         run: >-
-          python manage.py test ecommerce.tests orders.tests payment.tests
-          coupons.tests accounts.tests shop.tests -v2
+          python manage.py test ecommerce.tests ecommerce.tests.sentry
+          ecommerce.metrics.tests orders.tests payment.tests coupons.tests
+          accounts.tests shop.tests returns.tests wishlist.tests -v2
+        env:
+          ECOMMERCE_DOCKER_DIR: ${{ github.workspace }}/docker
 
   # Container pipeline: the production image is BUILT on every PR and push (fast
   # feedback, catches broken Dockerfiles immediately) and PUBLISHED to GHCR only on
@@ -95,6 +98,11 @@ jobs:
 
       - name: Compose file sanity check
         run: docker compose config --quiet
+
+      - name: Validate Grafana dashboards / Prometheus provisioning
+        # Runs the standalone validator (no Django needed) to catch broken
+        # dashboard JSON or mis-provisioned YAML even if Django tests are skipped.
+        run: python3 docker/grafana/scripts/validate_dashboards.py
 
       - name: Build production image (always)
         run: docker compose build web

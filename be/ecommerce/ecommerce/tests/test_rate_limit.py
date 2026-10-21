@@ -228,3 +228,33 @@ class CheckoutRateLimitTests(TestCase):
         response = self.client.post(self.url, {})
         self.assertEqual(response.status_code, 429)
         self.assertGreaterEqual(int(response['Retry-After']), 1)
+
+
+@override_settings(CACHES=LOCMEM_CACHES)
+class TrackingRateLimitTests(TestCase):
+    """End-to-end through the URL -> view -> decorator stack (card ee76485f)."""
+
+    def setUp(self):
+        cache.clear()
+        self.url = reverse('accounts:order_track')
+
+    @override_settings(RATE_LIMIT_TRACKING=(2, 60))
+    def test_third_post_is_429_and_cache_clear_recovers(self):
+        for _ in range(2):
+            response = self.client.post(
+                self.url, {'order_id': '1', 'email': 'a@b.com'},
+            )
+            self.assertEqual(response.status_code, 200)
+
+        response = self.client.post(
+            self.url, {'order_id': '1', 'email': 'a@b.com'},
+        )
+        self.assertEqual(response.status_code, 429)
+        self.assertGreaterEqual(int(response['Retry-After']), 1)
+
+        cache.clear()
+        response = self.client.post(
+            self.url, {'order_id': '1', 'email': 'a@b.com'},
+        )
+        self.assertEqual(response.status_code, 200)
+

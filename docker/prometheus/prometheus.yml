@@ -1,0 +1,41 @@
+# Prometheus configuration for the Django E-commerce demo.
+#
+# Card 3c3b2e3a — Phase 4.1 monitoring: Grafana dashboards.
+# This file is shipped as a default in the image; override at runtime by
+# mounting your own prometheus.yml onto /etc/prometheus/prometheus.yml
+# (see the ``monitoring`` Compose profile below).
+#
+# The scrape target is the Django ``web`` container's /metrics endpoint.
+# ``web`` is the service name inside the ``ecommerce-net`` Docker network;
+# Prometheus and Grafana must share that network to reach it.
+#
+# To enable the full monitoring stack:
+#   docker compose --profile monitoring up -d
+#
+# /metrics is gated by PROMETHEUS_ALLOWED_IPS (see docker-compose.yml).
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+alerting:
+  promql_http_duration_seconds: 30s
+
+scrape_configs:
+  - job_name: 'django-ecommerce-app'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['web:8000']
+        labels:
+          job: 'django-ecommerce'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # ---- Optional Celery metrics via Prometheus exporter (if installed) ----
+  # The Django app emits its own celery_* metrics on /metrics, so this block is
+  # only needed if you also run the standalone celery-exporter. It is included
+  # commented-out to avoid an unresolved target in a default deployment.
+  #
+  # - job_name: 'celery'
+  #   static_configs:
+  #     - targets: ['celery-exporter:9808']

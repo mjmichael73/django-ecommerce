@@ -60,6 +60,26 @@ class Order(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
 
+    # Order lifecycle status (card ee76485f) — surfaced to customers on the
+    # order history/detail pages and via the public tracking lookup. The
+    # initial state is PENDING; the Stripe webhook flips it to PAID
+    # (idempotently, behind the same gate that sets paid=True). Further
+    # transitions are analyst-driven (admin actions) — nothing in the app
+    # auto-promotes beyond PAID.
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        PAID = 'PAID', 'Paid'
+        PROCESSING = 'PROCESSING', 'Processing'
+        SHIPPED = 'SHIPPED', 'Shipped'
+        DELIVERED = 'DELIVERED', 'Delivered'
+        CANCELED = 'CANCELED', 'Canceled'
+
+    status = models.CharField(
+        max_length=12,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
     class Meta:
         ordering = ['-created']
         indexes = [
@@ -100,3 +120,12 @@ class Order(models.Model):
         if self.discount:
             return total_cost * (self.discount / Decimal(100))
         return Decimal(0)
+
+    def refundable_remaining(self) -> Decimal:
+        """How much of this order can still be refunded (total - refunded).
+
+        Used by the customer-facing return link: an order is returnable when
+        it is paid and this is positive — a partial refund on one item does
+        *not* hide the link for the remaining items.
+        """
+        return self.get_total_cost() - (self.refunded_amount or Decimal(0))

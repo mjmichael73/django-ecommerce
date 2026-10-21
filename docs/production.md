@@ -134,6 +134,44 @@ server {
 }
 ```
 
+## Static Files & Optional CDN
+
+By default static files stay local: `collectstatic` writes to `STATIC_ROOT`
+(`/app/static`), nginx (or WhiteNoise in development) serves `/static/`, and
+uploaded media stays on the `/media/` volume. No CDN is required.
+
+To serve static assets from a CDN, set the knobs in `.env` and redeploy:
+
+```bash
+STATIC_CDN_URL=https://cdn.example.com/   # schemed, must end with '/'
+STATIC_CDN_MANIFEST=true                  # default whenever the URL is set
+```
+
+With a CDN URL set:
+
+- `{% static %}` emits `https://cdn.example.com/...` (`STATIC_URL`).
+- The staticfiles storage becomes Django's `ManifestStaticFilesStorage`, so
+  `collectstatic` writes `staticfiles.json` and content-hashed filenames
+  (`css/base.<hash>.css`). That manifest must exist at runtime — the image
+  entrypoint runs `collectstatic` unless `SKIP_COLLECTSTATIC=1`.
+- Sync `STATIC_ROOT` to the CDN origin after every build. Hashed files can be
+  cached forever (`Cache-Control: public, max-age=31536000, immutable`);
+  `staticfiles.json` and unhashed names need a short TTL.
+- `STATIC_CDN_MANIFEST=false` keeps WhiteNoise's compressing manifest storage
+  instead, relaxed to non-strict so a reference missing from a stale manifest
+  is hashed on demand rather than erroring.
+- The enforced `Content-Security-Policy` is extended automatically: the CDN
+  origin is added to `script-src`, `style-src`, `img-src` and `font-src`, so
+  the cross-origin stylesheet/scripts/images/fonts are not blocked. Nothing
+  else in the policy changes, and leaving `STATIC_CDN_URL` blank keeps it
+  exactly as before.
+
+**Media is never routed to the CDN.** `MEDIA_URL` stays `/media/`: uploaded
+product images are user content, not public cacheable assets.
+
+Leaving `STATIC_CDN_URL` blank keeps the existing behaviour exactly, so local
+development, tests and small deployments need no CDN.
+
 ## Production Checklist
 
 Use this before pointing a real domain or live Stripe keys at the app:
@@ -147,7 +185,7 @@ Use this before pointing a real domain or live Stripe keys at the app:
 | **Email** | Real `EMAIL_*` / SMTP or provider backend — not the console backend. |
 | **TLS** | Terminate TLS at nginx (this repo includes a proxy profile), Traefik, or your LB; do not expose Gunicorn publicly. Prefer redirects to HTTPS at the proxy; see `SECURE_SSL_REDIRECT` in `.env.example`. |
 | **Broker / cache** | RabbitMQ is not exposed publicly. Redis is the **shared instance** from `~/projects/shared-services`; its persistence and exposure are managed there. |
-| **Media & static** | Media volume or object storage is backed up; understand who can read/write `MEDIA_ROOT`. |
+| **Media & static** | Media volume or object storage is backed up; understand who can read/write `MEDIA_ROOT`. If `STATIC_CDN_URL` is set, sync `STATIC_ROOT` to the CDN origin after every build. |
 | **Process** | Run `python manage.py check --deploy` in the target environment and fix reported issues. |
 | **Dependencies** | Pin or lock images and Python packages; plan security updates. |
 
@@ -168,17 +206,73 @@ docker exec redis redis-cli ping
 
 ### Prometheus
 
+The app exposes a `/metrics` endpoint (Prometheus text exposition) and a
+`/health/` endpoint (JSON DB probe) for load-balancer liveness/readiness
+checks.
+
+**Enabling metrics** — set `PROMETHEUS_ENABLED=1` in your `.env` (default is
+off; the app starts normally without any metrics overhead).
+
+**Protecting `/metrics`** — set `PROMETHEUS_METRICS_ALLOWED_IPS` to a
+comma-separated list of source IPs that may scrape (e.g. the Prometheus server's
+Docker-network IP, or `127.0.0.1` for local testing). Requests from non-allowlisted
+IPs get `403`. Leave empty for open access behind a restricted reverse proxy.
+
 ```yaml
 # prometheus.yml
 scrape_configs:
   - job_name: 'django-ecommerce'
     static_configs:
       - targets: ['web:8000']
+    metrics_path: '/metrics'
+```
+
+**Available metrics:**
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `django_http_requests_total` | Counter | `method`, `status` | HTTP requests by method (GET/POST/…) and status group (2xx/3xx/4xx/5xx) |
+| `django_http_request_duration_seconds` | Histogram | `method`, `status` | HTTP request latency |
+| `django_orders_total` | Counter | `status` | Orders created by Order.Status (PENDING/PAID/…) |
+| `django_orders_revenue_total` | Counter | `status` | Gross order revenue by status ($) |
+| `django_orders_refunded_total` | Counter | `order_id` | Refunded amount per order |
+| `django_celery_tasks_total` | Counter | `task`, `status` | Celery task completions by name + success/failure |
+| `django_celery_task_duration_seconds` | Histogram | `task` | Celery task execution time |
+
+**Health check:**
+
+```bash
+curl https://yourdomain.com/health/
+# {"status":"ok","timestamp":"2026-01-01T00:00:00Z","database":"ok"}
 ```
 
 ### Grafana
 
-Access Grafana at `http://localhost:3000` (default credentials: admin/admin)
+Access Grafana at `http://localhost:3000` (default credentials: admin/admin).
+
+Three dashboards are auto-provisioned from `docker/grafana/dashboards/`:
+
+| Dashboard | Covers | Metrics |
+|-----------|--------|---------|
+| HTTP Health, Latency & Errors | Request rate, error rates (4xx/5xx), latency P95 | `django_http_requests_total`, `django_http_request_duration_seconds` |
+| Orders, Payments & Refunds | Order creation rate, revenue, refunds | `django_orders_total`, `django_orders_revenue_total`, `django_orders_refunded_total` |
+| Celery Task Health & Latency | Task throughput, failure rate, duration P95 | `django_celery_tasks_total`, `django_celery_task_duration_seconds` |
+
+Start the full monitoring stack (Prometheus + Grafana) with:
+
+```bash
+make up-monitoring
+# Then: open http://localhost:3000 (admin/admin) and http://localhost:9090
+```
+
+Stop with `make monitoring-down`. Grafana dashboards and Prometheus config are
+mounted as read-only volumes from `docker/grafana/` and `docker/prometheus/` —
+edit those files and restart to apply changes. Grafana datasources and dashboards
+are provisioned automatically (no manual import needed).
+
+```bash
+make grafana-dashboards-validate   # standalone JSON/provisioning validator
+```
 
 ## Backup & Restore
 

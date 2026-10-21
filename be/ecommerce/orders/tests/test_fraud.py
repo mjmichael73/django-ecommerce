@@ -291,7 +291,10 @@ class FraudWebhookTests(FraudTestMixin, TestCase):
             self.assertEqual(self.order.fraud_score, 30)
             self.assertTrue(self.order.is_flagged)
             self.assertEqual(self.order.fraud_notes, 'large_total')
-            mock_task.assert_called_once_with(self.order.id)
+            mock_task.assert_called_once()
+            _args, _kwargs = mock_task.call_args
+            self.assertEqual(_args[0], self.order.id)
+            # _request_id is forwarded from the webhook request (card 6cc44f8g).
 
             # Stripe replays the SAME event: the idempotency gate means no
             # re-evaluation, no flag re-write and no new invoice dispatch.
@@ -330,7 +333,9 @@ class FraudWebhookTests(FraudTestMixin, TestCase):
         self.assertTrue(self.order.paid)
         self.assertEqual(self.order.fraud_score, 0)
         self.assertFalse(self.order.is_flagged)
-        mock_task.assert_called_once_with(self.order.id)
+        mock_task.assert_called_once()
+        _args, _kwargs = mock_task.call_args
+        self.assertEqual(_args[0], self.order.id)
 
     @patch('payment.views.stripe_webhook_view.flag_threshold',
            side_effect=Exception('persist blew up'))
@@ -346,7 +351,9 @@ class FraudWebhookTests(FraudTestMixin, TestCase):
         self.assertEqual(self.order.fraud_score, 0)
         self.assertFalse(self.order.is_flagged)
         self.assertEqual(self.order.fraud_notes, '')
-        mock_task.assert_called_once_with(self.order.id)
+        mock_task.assert_called_once()
+        _args, _kwargs = mock_task.call_args
+        self.assertEqual(_args[0], self.order.id)
 
     def test_analyst_cleared_flag_survives_replay(self, mock_task):
         """A flag cleared via the admin action must not resurrect on a

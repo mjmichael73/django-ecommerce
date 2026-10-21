@@ -1,0 +1,67 @@
+{% extends "shop/base.html" %}
+
+{% block title %}Wish list · Studio Market{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="page-head__title">Your wish list</h1>
+  <p class="page-head__crumb"><a href="{% url 'accounts:order_list' %}">← Back to all orders</a></p>
+</div>
+
+{% if wish_list and wish_list.items.exists %}
+<div class="wishlist">
+  <form method="post" action="{% url 'wishlist:clear' %}" class="wishlist__clear-form">
+    {% csrf_token %}
+    <button type="submit" class="btn btn--secondary">Clear wish list</button>
+  </form>
+  <table class="wishlist__table">
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th class="wishlist__price">Price</th>
+        <th class="wishlist__qty">Qty</th>
+        <th class="wishlist__total">Total</th>
+        <th class="wishlist__actions">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in wish_list.items.all %}
+      <tr class="wishlist__row{% if not item.is_available %} wishlist__row--unavailable{% endif %}">
+        <td class="wishlist__name">
+          <a href="{{ item.product.get_absolute_url }}">{{ item.product.name }}</a>
+          {% if item.variant %}
+            <span class="wishlist__variant">— {{ item.variant.name }}</span>
+          {% endif %}
+          {% if not item.is_available %}
+            <span class="wishlist__badge wishlist__badge--dead">No longer available</span>
+          {% endif %}
+        </td>
+        <td class="wishlist__price">${{ item.unit_price|floatformat:2 }}</td>
+        <td class="wishlist__qty">{{ item.quantity }}</td>
+        <td class="wishlist__total">${{ item.line_total|floatformat:2 }}</td>
+        <td class="wishlist__actions">
+          {% if item.is_available %}
+          <form action="{% url 'wishlist:add_to_cart' item.product.id %}" method="post" class="wishlist__move-form">
+            {% csrf_token %}
+            {% if item.variant %}<input type="hidden" name="variant_id" value="{{ item.variant.id }}">{% endif %}
+            <button type="submit" class="btn btn--small">Move to cart</button>
+          </form>
+          {% endif %}
+          <form action="{% url 'wishlist:remove' item.product.id %}" method="post" class="wishlist__remove-form">
+            {% csrf_token %}
+            {% if item.variant %}<input type="hidden" name="variant_id" value="{{ item.variant.id }}">{% endif %}
+            <button type="submit" class="btn btn--small btn--ghost">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="panel panel--narrow">
+  <p class="status-hero">Your wish list is empty.</p>
+  <p class="status-hero__sub"><a href="{% url 'shop:product_list' %}">Browse the shop</a> and save items for later.</p>
+</div>
+{% endif %}
+{% endblock %}

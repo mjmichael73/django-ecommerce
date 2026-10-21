@@ -1,0 +1,66 @@
+{% extends "shop/base.html" %}
+
+{% block title %}Request return for order #{{ order.id }} · Studio Market{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="page-head__title">Request a return</h1>
+  <p class="page-head__crumb"><a href="{% url 'accounts:order_detail' order.pk %}">← Back to order #{{ order.id }}</a></p>
+</div>
+
+<div class="checkout-grid">
+  <div class="order-form-panel">
+    <h2>Order #{{ order.id }}</h2>
+    <p>Total: <strong>${{ order.get_total_cost|floatformat:2 }}</strong></p>
+    <p>Status: {{ order.get_status_display }}{% if order.paid %} (paid){% endif %}</p>
+
+    <form method="post" action="{% url 'accounts:order_return' order.pk %}" class="return-form">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="panel panel--narrow">
+          <p class="status-hero status-hero--error">{{ form.non_field_errors }}</p>
+        </div>
+      {% endif %}
+
+      <div class="field-group">
+        <label for="id_item">Return a specific item (optional)</label>
+        {% if form.item %}
+          {% for choice in form.item %}
+            <div>
+              <label><input type="radio" name="item" value="{{ choice.data.value }}" {% if choice.selected %}checked{% endif %}> <span>{{ choice.data.label }}</span></label>
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="hint">Leave unchecked to return the entire order.</p>
+        {% endif %}
+      </div>
+
+      <div class="field-group">
+        <label for="id_reason">Reason for return</label>
+        {{ form.reason }}
+        {% if form.reason.errors %}
+          <ul class="field-errors">
+            {% for error in form.reason.errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+
+      <div class="field-group">
+        <label for="id_detail">Additional details (optional)</label>
+        {{ form.detail }}
+        {% if form.detail.errors %}
+          <ul class="field-errors">
+            {% for error in form.detail.errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="btn">Submit return request</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

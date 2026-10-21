@@ -286,6 +286,32 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
 ```
 
 
+### Integration tests (card e574da32)
+
+```python
+# orders/tests/test_integration.py — end-to-end cart -> orders -> payment -> coupons
+# Drives the real view layer (cart_add, coupon_apply, order_create, payment_process,
+# stripe_webhook) via HTTP POST/GET across the full purchase flow. Stripe Checkout
+# Session.create and the Celery order_created / payment_completed tasks are mocked
+# exactly as the per-app unit tests do. Rate-limit ceilings are overridden to a
+# per-process LocMem ceiling so multi-POST flows never hit 429. Covers: guest
+# checkout (order created, cart cleared, task enqueued); Stripe session creation
+# with idempotency_key + line items; webhook marks paid + single invoice
+# dispatch + idempotent replay; authenticated checkout sets order.user FK;
+# variant line-item price snapshot + Stripe line-item name 'Product — Variant';
+# mixed plain + variant cart; coupon apply (valid / invalid / expired); coupon
+# discount math on Cart; authenticated purchase -> order history visibility;
+# payment_process short-circuit on paid orders; unpaid order creates Stripe
+# session with unit_amount from stored OrderItem.price.
+#
+# Note: order_create does NOT persist the coupon FK / discount onto the Order row
+# — the discount is only reflected in the cart's get_total_price_after_discount.
+# These tests pin that observed behaviour.
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
+    -v "$PWD/be/ecommerce:/app" -v media_data:/app/media web python manage.py test \
+    orders.tests.test_integration -v2
+```
+
 ### Full-text search tests (card bf247ef9)
 
 ```python
@@ -329,6 +355,22 @@ docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm \
 docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
     -v "$PWD/be/ecommerce:/app" web python manage.py test \
     shop.tests.test_recommendations -v2
+```
+
+### Performance tests (card e4e4dh4g)
+
+```python
+# ecommerce/tests/test_performance.py — SQL query-budget and relative
+# wall-clock regression tests for the storefront's hottest paths.
+# Design: no brittle timing assertions — every test guards a *structural*
+# invariant (query-count ceiling via CaptureQueriesContext, result sizes,
+# relative scaling, repeated-checkout stability). Rate limits are overridden
+# to (0, 0) per test class to disable the limiter entirely so burst
+# checkout POSTs don't hit 429.
+# The Celery order_created.delay task is mocked out. Stripe is never
+# exercised here (that lives in payment:process). Runs on the LocMem cache
+# (see test_runner.py) — never touches shared Redis DB 2.
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test ecommerce.tests.test_performance -v2
 ```
 
 ## Integration Tests
@@ -480,7 +522,7 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Faceted navigation test module `shop.tests.test_facets` (card 3g83heaa)
 - [x] AJAX cart updates test module `cart.tests.test_ajax` (card 77ce5899)
 - [x] Product recommendations test module `shop.tests.test_recommendations` (card 45ba5cfh)
-- [x] Test data fixtures created
+- [ ] Test data fixtures created
 - [x] Accounts form tests `accounts.tests.test_forms` — RegisterForm/ProfileForm validation
 - [x] Cart AJAX helper tests `cart.tests.test_ajax_helpers` — JSON response helpers
 - [x] Cart utils tests `cart.tests.test_cart_utils` — session-based cart helpers
@@ -491,3 +533,6 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Payment process view tests `payment.tests.test_views` — Stripe Checkout session creation
 - [x] Shop cache key tests `shop.tests.test_cache_keys` — cache key helpers and invalidation
 - [x] Shop templatetag tests `shop.tests.test_templatetags` — dict_get, get_category_count, srcset
+- [x] Performance test module `ecommerce.tests.test_performance` (card e4e4dh4g) — query-budget and relative-slowdown regression tests for catalog listing, product detail, cart detail, and checkout POST endpoints
+- [x] Wishlist test module `wishlist.tests` (card cc26292g)
+- [x] Structured logging test module `ecommerce.tests.test_structured_logging` (card 6cc44f8g) — JSON formatter, request-ID middleware, redaction, Celery task propagation, settings integration

@@ -1,6 +1,8 @@
 from django.urls import reverse
 from django.shortcuts import render, redirect
 from ecommerce.rate_limit import rate_limit
+from ecommerce.middleware.request_id import propagate_request_id
+from ecommerce.metrics.business import record_order_created
 from orders.models import OrderItem
 from orders.forms import OrderCreateForm
 from cart.utils import Cart
@@ -29,7 +31,12 @@ def order_create(request):
                     variant=item.get('variant'),
                 )
             cart.clear()
-            order_created.delay(order.id)
+            # Business metric: order created (card g37aggbd). Record the
+            # initial status and gross total.
+            record_order_created(order.status, float(order.get_total_cost_before_discount()))
+            # Forward the active request ID so the invoice/email task logs stay
+            # correlated with this checkout request (card 6cc44f8g).
+            order_created.delay(order.id, **propagate_request_id())
             request.session['order_id'] = order.id
             return redirect(reverse('payment:process'))
     else:

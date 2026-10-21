@@ -41,6 +41,8 @@ from django.utils import timezone
 
 from orders.models import Order
 
+from ecommerce.metrics.business import record_order_refunded
+
 logger = logging.getLogger(__name__)
 
 # Reasons returned by refund_order() — stable strings, the admin action
@@ -146,5 +148,11 @@ def refund_order(order, amount=None) -> tuple[bool, str]:
     order.refunded_amount = new_refunded_amount
     order.refund_id = refund_id
     order.refunded_at = refunded_at
+
+    # Business metric (card g37aggbd) — record the refunded amount.
+    try:
+        record_order_refunded(order.pk, float(refunded_delta))
+    except Exception:
+        logger.exception('failed to record refund metric for order %s', order.pk)
 
     return True, REASON_OK

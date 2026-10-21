@@ -41,9 +41,9 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [ ] Create wish lists
 
 ### 2.3 Order Management
-- [ ] Add order tracking
+- [x] Add order tracking (card ee76485f; `accounts/tests/test_order_tracking.py`, `ecommerce/tests/test_rate_limit.py`)
 - [ ] Implement order history
-- [ ] Add return/refund flow
+- [x] Add return/refund flow (card 4fcgcg9e; `returns/` app with `ReturnRequest` model, customer-facing form views, rate limiting, admin approve/reject/refund/cancel actions routing through the existing `refund_order` primitive)
 - [ ] Create admin dashboard
 
 ## Phase 3: Performance
@@ -51,7 +51,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 ### 3.1 Caching
 - [x] Add Redis caching for product listings (card 29b8eadg)
 - [x] Implement cache invalidation via signals (card 29b8eadg)
-- [ ] Add CDN for static files
+- [x] Add CDN for static files (card 327eeba2; optional, env-gated via `STATIC_CDN_URL`/`STATIC_CDN_MANIFEST`; manifest-versioned assets or WhiteNoise fallback)
 - [ ] Optimize database queries
 
 ### 3.2 Database
@@ -69,10 +69,10 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 ## Phase 4: Operations
 
 ### 4.1 Monitoring
-- [ ] Add Sentry for error tracking
-- [ ] Implement structured logging
-- [ ] Add Prometheus metrics
-- [ ] Create Grafana dashboards
+- [x] Add Sentry for error tracking (card 5ggb4929 — optional, env-gated by `SENTRY_DSN`; Django + Celery integrations; sensitive-data scrubbing for auth/payment/cookies)
+- [x] Implement structured logging (JSON output, request-ID correlation via `X-Request-Id` header, sensitive-data redaction, Celery task propagation — card 6cc44f8g)
+- [x] Add Prometheus metrics (card g37aggbd — bounded HTTP request latency/count/status, order revenue, Celery task counters, `/metrics` (IP-allowlisted) and `/health` endpoints)
+- [x] Create Grafana dashboards (card 3c3b2e3a — Prometheus + Grafana optional via `--profile monitoring`, 3 dashboards for HTTP/Celery/business metrics, provisioning + validation)
 
 ### 4.2 Deployment
 - [ ] Add Kubernetes manifests
@@ -81,9 +81,9 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [ ] Create backup procedures
 
 ### 4.3 Testing
-- [ ] Add unit tests for all apps
-- [ ] Create integration tests
-- [ ] Add performance tests
+- [x] Add unit tests for all apps
+- [x] Create integration tests
+- [x] Add performance tests (card e4e4dh4g; `ecommerce/tests/test_performance.py`)
 - [x] Implement CI/CD pipeline
 
 ## Success Criteria

@@ -1,7 +1,8 @@
 # Django ecommerce — Docker-first development (run from repo root)
 .PHONY: help build up up-d up-detached up-proxy up-d-proxy up-d-flower down logs logs-web ps \
 	restart-web restart-worker migrate makemigrations seed createsuperuser shell \
-	collectstatic verify-pdf-static test manage sh check-deploy flower down-volumes clean
+	collectstatic verify-pdf-static test manage sh check-deploy flower down-volumes clean \
+	up-monitoring monitoring-down grafana-dashboards-validate
 
 COMPOSE ?= docker compose
 WEB := web
@@ -43,6 +44,15 @@ up-d-proxy: ## Same with reverse-proxy detached
 	$(COMPOSE) --profile reverse-proxy up -d
 
 up-d-flower: up-d ## Legacy alias — Flower is included in `make up-d` now
+
+up-monitoring: ## Start the optional Prometheus+Grafana monitoring stack (profile: monitoring)
+	$(COMPOSE) --profile monitoring up -d prometheus grafana
+
+monitoring-down: ## Stop the optional monitoring stack (keeps prometheus/grafana volumes)
+	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) --profile monitoring down
+
+grafana-dashboards-validate: ## Validate Grafana dashboard JSON structure (standalone script)
+	@python3 docker/grafana/scripts/validate_dashboards.py
 
 down: ## Stop stack (keeps volumes / database data)
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) down
@@ -89,15 +99,18 @@ collectstatic: ## collectstatic (entrypoint usually runs this on start)
 verify-pdf-static: ## Host check: collectstatic + assert static/css/pdf.css (CI parity, needs venv)
 	cd be/ecommerce && SECRET_KEY="$${SECRET_KEY:-__local_collectstatic_check__}" python3 manage.py collectstatic --noinput && test -f static/css/pdf.css && echo OK
 
-# Tests must not read or mutate the shared Redis cache (DB 2): an empty
-# REDIS_CACHE_URL keeps the LocMem cache, so every run starts from scratch.
+ # Tests must not read or mutate the shared Redis cache (DB 2): an empty
+ # REDIS_CACHE_URL keeps the LocMem cache, so every run starts from scratch.
 test: ## Run Django tests via compose run (bind-mounts ./be/ecommerce; DB etc. must be up: make up-d)
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) run --rm \
 		-e SKIP_COLLECTSTATIC=1 \
 		-e REDIS_CACHE_URL= \
+		-e ECOMMERCE_DOCKER_DIR=/mnt/docker \
 		-v "$(CURDIR)/be/ecommerce:/app" \
+		-v "$(CURDIR)/docker:/mnt/docker:ro" \
+		-v "$(CURDIR):/repo:ro" \
 		-v media_data:/app/media \
-		$(WEB) python manage.py test ecommerce.tests orders.tests payment.tests coupons.tests accounts.tests shop.tests -v2
+		$(WEB) python manage.py test ecommerce.tests ecommerce.tests.sentry ecommerce.metrics.tests orders.tests payment.tests coupons.tests accounts.tests shop.tests returns.tests wishlist.tests -v2
 
 manage: ## Run any manage.py command, e.g. make manage ARGS='showmigrations'
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) exec $(WEB) python manage.py $(ARGS)

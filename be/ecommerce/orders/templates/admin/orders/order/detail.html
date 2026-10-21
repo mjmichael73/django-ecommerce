@@ -54,6 +54,10 @@
       <td>{% if order.paid %}Paid{% else %}Pending payment{% endif %}</td>
     </tr>
     <tr>
+      <th>Tracking status</th>
+      <td>{{ order.get_status_display }}</td>
+    </tr>
+    <tr>
       <th>Stripe payment</th>
       <td>
         {% if order.stripe_id %}

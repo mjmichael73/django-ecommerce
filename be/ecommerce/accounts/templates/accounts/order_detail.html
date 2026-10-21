@@ -14,8 +14,18 @@
     {{ order.email }}<br>
     {{ order.address }}, {{ order.postal_code }} {{ order.city }}</p>
     <p><strong>Status:</strong> {% if order.paid %}Paid{% else %}Pending payment{% endif %}</p>
+    <p><strong>Tracking status:</strong> {{ order.get_status_display }}</p>
     {% if order.stripe_id %}
     <p><strong>Payment:</strong> <a href="{{ order.get_stripe_url }}" target="_blank" rel="noopener">{{ order.stripe_id }}</a></p>
+    {% endif %}
+    {% if order.paid and order.refundable_remaining > 0 %}
+    <p><a href="{% url 'accounts:order_return' order.pk %}" class="btn">Request a return</a></p>
+    {% endif %}
+    {% if order.refunded_amount %}
+    <p><strong>Refunded:</strong> ${{ order.refunded_amount|floatformat:2 }}</p>
+    {% endif %}
+    {% if order.return_requests.exists %}
+    <p><a href="{% url 'accounts:return_list' %}">View your return requests</a></p>
     {% endif %}
   </div>
   <aside class="order-info">

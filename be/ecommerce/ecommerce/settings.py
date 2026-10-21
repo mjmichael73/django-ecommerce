@@ -111,9 +111,16 @@ INSTALLED_APPS = [
     'payment.apps.PaymentConfig',
     'coupons.apps.CouponsConfig',
     'accounts.apps.AccountsConfig',
+    'returns.apps.ReturnsConfig',
+    'wishlist.apps.WishlistConfig',
 ]
 
 MIDDLEWARE = [
+    # Request-ID correlation (card 6cc44f8g — structured logging). Must be
+    # outermost so the ID (and the X-Request-Id response header) is present on
+    # every response, including early rejections (429, SecurityMiddleware 301s,
+    # WhiteNoise static, CSP 403s).
+    'ecommerce.middleware.request_id.RequestIDMiddleware',
     # Content Security Policy header on every response (card f3d54f76).
     # Must stay outermost (position 0) so it wraps responses produced by all
     # inner layers — SecurityMiddleware SECURE_SSL_REDIRECT 301s,
@@ -128,6 +135,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Prometheus HTTP metrics (card g37aggbd). Inner so it wraps only real
+    # view logic. When PROMETHEUS_ENABLED is off the middleware is a pass-through
+    # (it calls get_response and returns without recording).
+    'ecommerce.metrics.middleware.PrometheusMetricsMiddleware',
 ]
 
 # -----------------------------------------------------------------------------
@@ -215,6 +226,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'cart.context_processors.cart',
+                # Exposes wishlist_item_count for the nav badge (card cc26292g).
+                'wishlist.context_processors.wishlist',
                 # Exposes social_google_enabled for the login page (card hhde4h24).
                 'accounts.context_processors.social_auth',
             ],
@@ -258,6 +271,9 @@ RATE_LIMIT_COUPON = (10, 3600)
 RATE_LIMIT_EMAIL_VERIFY = (5, 3600)
 RATE_LIMIT_PASSWORD_RESET = (5, 3600)
 RATE_LIMIT_REVIEW = (10, 3600)
+RATE_LIMIT_TRACKING = (20, 3600)
+RATE_LIMIT_RETURN = (5, 3600)
+RATE_LIMIT_WISHLIST = (60, 3600)
 
 # Accept X-Forwarded-For for rate-limit buckets only when Django really sits
 # behind a proxy that writes it — the same flag that enables
@@ -315,20 +331,69 @@ USE_I18N = True
 
 USE_TZ = True
 
+# ---------------------------------------------------------------------------
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
-
-# Leading slash = site-root absolute: a relative 'static/' prefix would be
-# resolved against the current page path and 404 on nested pages.
+#
+# Card 327eeba2 — Phase 3.1 caching: optional CDN-backed static asset delivery.
+#
+# ``STATIC_CDN_URL`` (env, optional) overrides ``STATIC_URL`` to point at a
+# public CDN origin. When set:
+#   * STATIC_URL becomes that URL so ``{% static %}`` emits CDN URLs.
+#   * STORAGES['staticfiles'] switches to the manifest storage so
+#     ``collectstatic`` emits content-hash filenames (``css/base.<hash>.css``),
+#     letting the CDN serve immutable ``Cache-Control: max-age=31536000``.
+#   * ``STATIC_CDN_MANIFEST=false`` keeps WhiteNoise's compressed *manifest*
+#     storage instead and relaxes it (``WHITENOISE_MANIFEST_STRICT``), so a
+#     stale manifest hashes files on demand instead of raising a 500.
+# When unset (the default — local dev / tests) STATIC_URL stays ``/static/``
+# and WhiteNoise handles compression + in-memory caching without a manifest,
+# so no external dependency is required.
+#
+# Media files are NEVER routed to the CDN: MEDIA_URL stays ``/media/`` and is
+# served from the app/nginx volume (uploaded product images are private user
+# content, not public cacheable assets).
+# ---------------------------------------------------------------------------
+# Local fallback when no CDN is configured (site-root absolute).
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'static'
+
+# Site-root absolute so product image URLs resolve correctly on nested pages;
+# media is never moved to the CDN regardless of STATIC_CDN_URL.
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Build the optional CDN wiring exactly once at import time. ``STATIC_CDN_ENABLED``
+# is exposed for templates/tests; ``STATIC_CDN_CONFIG`` carries the resolved URL.
+from ecommerce.static_config import static_cdn_config as _static_cdn_config
+STATIC_CDN_CONFIG = _static_cdn_config(os.environ)
+STATIC_CDN_ENABLED = STATIC_CDN_CONFIG is not None
+
+if STATIC_CDN_ENABLED:
+    STATIC_URL = STATIC_CDN_CONFIG.url
+    _static_storage = STATIC_CDN_CONFIG.storage_backend
+    if not STATIC_CDN_CONFIG.manifest:
+        # Only WhiteNoise's compressed-manifest storage reads this. Relax it
+        # when manifest versioning is off so a stale manifest hashes the file
+        # on demand instead of raising a 500 at render time.
+        WHITENOISE_MANIFEST_STRICT = False
+    # Every {% static %} asset is fetched cross-origin now, so the enforced
+    # policy must allow the CDN origin on each asset directive — otherwise
+    # default-src 'self' silently blocks the stylesheet, scripts, images and
+    # fonts. Everything else in CSP_POLICY is left untouched.
+    for _csp_directive in ('script-src', 'style-src', 'img-src', 'font-src'):
+        CSP_POLICY[_csp_directive] = (
+            f'{CSP_POLICY[_csp_directive]} {STATIC_CDN_CONFIG.origin}'
+        )
+else:
+    _static_storage = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
     },
     'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+        'BACKEND': _static_storage,
     },
 }
 
@@ -340,11 +405,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'accounts:profile'
 LOGOUT_REDIRECT_URL = 'shop:product_list'
-
-# Leading slash = site-root absolute: a relative 'media/' prefix made
-# product image URLs resolve against the page path and 404 on detail pages.
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
 
 CART_SESSION_ID = 'cart'
 
@@ -368,3 +428,133 @@ CELERY_BROKER_URL = os.environ.get(
 )
 if os.environ.get('CELERY_RESULT_BACKEND'):
     CELERY_RESULT_BACKEND = os.environ['CELERY_RESULT_BACKEND']
+
+# ---------------------------------------------------------------------------
+# Structured logging (card 6cc44f8g — Phase 4.1 monitoring)
+#
+# ``LOGGING`` is assembled once at settings import time so ``django-admin
+# check`` and ``override_settings`` see a plain dict. The builder reads the
+# ``LOG_JSON`` / ``LOG_LEVEL`` knobs above and picks JSON output when Django
+# is running with DEBUG=False (production), plain text when DEBUG=True.
+# Override at runtime with the env knobs:
+#
+#   LOG_JSON=1      force JSON output (default when not DEBUG)
+#   LOG_JSON=0      force plain text (default when DEBUG)
+#   LOG_LEVEL=DEBUG/INFO/WARNING/ERROR/CRITICAL  (default INFO)
+#
+# Request correlation: ``RequestIDMiddleware`` (outermost in MIDDLEWARE)
+# generates ``X-Request-Id`` per request; the ``request_id`` filter injects it
+# into every record and the JSON formatter renders it as a stable top-level
+# field. Celery tasks inherit the ID if dispatched from within a request (see
+# ``ecommerce/celery.py``).
+# ---------------------------------------------------------------------------
+LOG_JSON = _env_bool('LOG_JSON', 'true' if not DEBUG else 'false')
+LOG_LEVEL = (os.environ.get('LOG_LEVEL', '') or 'INFO').upper()
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'filters': {
+        'request_id': {'()': 'ecommerce.logging.RequestIDLogFilter'},
+    },
+    'formatters': {
+        'json': {'()': 'ecommerce.logging.JSONFormatter'},
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'json',
+            'filters': ['request_id'],
+            'level': LOG_LEVEL,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': LOG_LEVEL,
+    },
+    'loggers': {
+        'django': {'level': LOG_LEVEL, 'propagate': True},
+        'django.request': {'level': LOG_LEVEL, 'propagate': True},
+        'django.server': {'level': LOG_LEVEL, 'propagate': True},
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics (card g37aggbd — Phase 4.1 monitoring)
+#
+# ``PROMETHEUS_ENABLED`` (env, default off) turns on an optional Prometheus
+# metrics endpoint at ``/metrics`` plus per-request HTTP counters and latency
+# histograms, bounded-order/business counters, and Celery task stats. When the
+# flag is off the metrics module installs no-op meters so startup and request
+# paths are completely unaffected — ``prometheus_client`` is imported lazily
+# inside the registry and never touches request handling.
+#
+# The ``/metrics`` URL is wired in ecommerce/urls.py only when this flag is
+# set, so the endpoint 404s when metrics are disabled (no open exposure).
+# ---------------------------------------------------------------------------
+PROMETHEUS_ENABLED = _env_bool('PROMETHEUS_ENABLED', 'false')
+
+# Optional IP allowlist for the /metrics endpoint. When set (comma-separated),
+# only requests from these source IPs can scrape metrics — Prometheus can
+# pull from the internal Docker network IP; set to ``127.0.0.1`` for local.
+# Empty = open to any client that can reach the port (use behind a reverse
+# proxy that restricts access in production).
+_prom_ips = os.environ.get('PROMETHEUS_METRICS_ALLOWED_IPS', '')
+if _prom_ips.strip():
+    PROMETHEUS_METRICS_ALLOWED_IPS = {
+        ip.strip() for ip in _prom_ips.split(',') if ip.strip()
+    }
+else:
+    PROMETHEUS_METRICS_ALLOWED_IPS = set()
+
+# ---------------------------------------------------------------------------
+# Sentry error tracking (card 5ggb4929 — Phase 4.1 monitoring)
+#
+# Sentry is entirely optional and env-gated, exactly like the Google social
+# auth (card hhde4h24) and Prometheus metrics above: the ``SENTRY_DSN`` env
+# var is the single on/off switch. When unset/empty no Sentry SDK is
+# initialised and startup, request handling, and Celery are completely
+# unaffected — ``sentry_sdk`` is an optional dependency not listed in
+# requirements.txt; install it with ``pip install sentry-sdk``.
+#
+# The wiring decision (parse + scrubbing config) lives in
+# ``ecommerce.sentry_config`` so settings and tests share the same logic.
+# Initialisation itself is deferred to the WSGI/ASGI entry points and the
+# Celery bootstrap (see ``ecommerce/sentry.py`` ``init_sentry``), which call
+# it once per process — never at import time of settings.py, so
+# ``manage.py check`` / ``override_settings`` / test runs never touch the
+# network or require the SDK.
+#
+# Sensitive-data scrubbing (card 5ggb4929):
+#   * ``SENTRY_SEND_DEFAULT_PII`` (default off) — Django CSRF cookie value,
+#     session key, and auth state are not auto-attached to events.
+#   * Automatic request-body header scrubbing strips ``Authorization``,
+#     ``Cookie``, ``Set-Cookie``, ``X-CSRFToken`` from Sentry's captured
+#     request data.
+#   * A custom ``before_send`` processor redacts payment/credential field
+#     values (card numbers, CVC, expiry, Stripe secret keys, passwords, tokens)
+#     from ``extra`` / request body / form data, matching the keys already
+#     redacted by the project's JSON log formatter (see ``ecommerce/logging.py``
+#     ``SENSITIVE_SUFFIXES``).
+#   * Cookie values are redacted from ``request.cookies``; only safe Stripe
+#     correlation tokens (``idempotency_key``, ``client_reference_id``,
+#     ``order_id``) are kept for refund/replay tracing.
+#
+# Opt-in knobs (all default-off / safe):
+#   SENTRY_DSN               — set to enable (required, no default)
+#   SENTRY_ENVIRONMENT       — e.g. 'production', 'staging' (default 'unknown')
+#   SENTRY_RELEASE           — release tag; auto-derived from GIT_COMMIT/APP_VERSION
+#   SENTRY_TRACES_SAMPLE_RATE — transaction sampling (default 0.2)
+#   SENTRY_PROFILES_SAMPLE_RATE — profiling sampling (default 0.0 = off)
+#   SENTRY_SEND_DEFAULT_PII  — default false (do not capture PII)
+#   SENTRY_SCRUB_REQUEST_HEADERS  — default true
+#   SENTRY_SCRUB_REQUEST_COOKIES  — default true
+#   SENTRY_SCRUB_PAYMENT_DATA     — default true
+#   SENTRY_SENSITIVE_FIELDS       — extra comma-separated field suffixes to scrub
+#   SENTRY_CELERY_ENABLED          — default true (CeleryIntegration)
+#   SENTRY_DJANGO_ENABLED          — default true (DjangoIntegration)
+# ---------------------------------------------------------------------------
+from ecommerce.sentry_config import sentry_config as _sentry_config_from_env
+# ``SENTRY_DSN`` is the on/off switch; the config object is built here (cheap,
+# no SDK import) so tests can introspect ``SENTRY_CONFIG`` without touching the
+# network. ``init_sentry()`` is what actually imports ``sentry_sdk``.
+SENTRY_CONFIG = _sentry_config_from_env(os.environ)

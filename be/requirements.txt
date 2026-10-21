@@ -42,6 +42,10 @@ requests==2.31.0
 six==1.16.0
 sqlparse==0.4.4
 stripe==8.9.0
+# Sentry error tracking (card 5ggb4929) — optional, activated by SENTRY_DSN.
+# The SDK is imported lazily by ecommerce/sentry.py only when SENTRY_DSN is set,
+# so it is safe to keep pinned here even when Sentry is off in a given env.
+sentry-sdk==2.21.0
 tinycss2==1.2.1
 tornado==6.4
 typing_extensions==4.10.0

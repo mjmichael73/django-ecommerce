@@ -1,0 +1,30 @@
+# Grafana datasource provisioning.
+#
+# Card 3c3b2e3a — Phase 4.1 monitoring: Grafana dashboards.
+# This file is mounted into the grafana container at
+# /etc/grafana/provisioning/datasources/datasource.yml so Grafana
+# auto-registers Prometheus on first boot — no manual "Add data source" step.
+#
+# The Prometheus URL is environment-configured via
+# ${PROMETHEUS_URL:-http://prometheus:9090} so deployments that run
+# Prometheus under a different host/port (or behind a reverse proxy) can
+# override it through .env without editing this file.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: ${PROMETHEUS_URL:-http://prometheus:9090}
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: GET
+      # Use the time series SQL store for better dashboard performance.
+      timeInterval: "15s"
+      exemplarConfig:
+        enable: true
+        maxConcurrentRequest: 5
+      # The /metrics endpoint is gated; Prometheus must scrape from the
+      # internal Docker network. If PROMETHEUS_METRICS_ALLOWED_IPS is set,
+      # add prometheus's container IP here.

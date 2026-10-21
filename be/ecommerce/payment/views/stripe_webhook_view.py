@@ -10,6 +10,9 @@ from orders.fraud import evaluate, flag_threshold
 from orders.models import Order
 from orders.tasks import payment_completed
 from shop import inventory
+from ecommerce.middleware.request_id import propagate_request_id
+from ecommerce.metrics.business import record_order_paid
+from ecommerce.metrics.business import record_order_refunded
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +49,29 @@ def stripe_webhook(request):
             # and concurrent duplicates must be no-ops. The guarded UPDATE
             # flips paid only once (first delivery wins) and never rewrites
             # the stripe_id recorded by that first payment.
-            updated = Order.objects.filter(id=order_id, paid=False).update(
+            # Idempotency: Stripe delivers webhooks at-least-once, so replays
+            # and concurrent duplicates must be no-ops. The guarded UPDATE
+            # flips paid only once (first delivery wins) and never rewrites
+            # the stripe_id recorded by that first payment. The status is
+            # advanced to PAID by the same atomic guard so a replay never
+            # re-transitions it.
+            updated = Order.objects.filter(
+                id=order_id, paid=False,
+            ).update(
                 paid=True,
                 stripe_id=session.payment_intent,
+                status=Order.Status.PAID,
             )
             if updated == 1:
+                # Business metric: order paid (card g37aggbd). Record the
+                # revenue at the moment of payment.
+                try:
+                    record_order_paid(float(order.get_total_cost()))
+                except Exception:
+                    logger.exception(
+                        'failed to record order_paid metric for order %s',
+                        order_id,
+                    )
                 # Fraud evaluation (card 832hc4eg) — FLAG-ONLY, BEST-EFFORT.
                 # It scores the order and persists the signals; it never
                 # un-pays, blocks, or 40x's anything (the row is already paid
@@ -93,8 +114,10 @@ def stripe_webhook(request):
                         'inventory decrement failed for order %s', order_id,
                     )
                 # Launch asynchronous task for payment completed —
-                # unconditional inside the idempotency gate, above.
-                payment_completed.delay(order.id)
+                # unconditional inside the idempotency gate, above. The active
+                # request ID is forwarded so the task's log lines carry it
+                # for end-to-end correlation (card 6cc44f8g).
+                payment_completed.delay(order.id, **propagate_request_id())
     elif event.type == 'charge.refunded':
         # Inbound truth for refunds (card a3cg42c4). A refund issued in the
         # Stripe dashboard (or anywhere else outside this app) arrives here,
@@ -134,8 +157,26 @@ def _apply_refunded_event(charge) -> None:
     if order is None:
         # Refund for a payment we do not know about — nothing to update.
         return
+
+    # Compute the delta for the business metric (card g37aggbd). Stripe's
+    # amount_refunded is cumulative; the per-event delta is the difference
+    # from the last stored value. Idempotency: if the stored value already
+    # equals the incoming value (a replay of the same event), the delta is
+    # zero and we skip the metric recording to avoid double-counting.
+    previous = order.refunded_amount or Decimal('0')
+    refunded_delta = refunded_amount - previous
+
     Order.objects.filter(pk=order.pk).update(
         refunded_amount=refunded_amount,
         refund_id=_single_refund_id(charge),
         refunded_at=timezone.now(),
     )
+
+    # Business metric — record the per-event refund delta (card g37aggbd).
+    if refunded_delta > 0:
+        try:
+            record_order_refunded(order.pk, float(refunded_delta))
+        except Exception:
+            logger.exception(
+                'failed to record refund metric for order %s', order.pk,
+            )

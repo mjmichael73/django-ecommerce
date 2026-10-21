@@ -4,6 +4,7 @@ from shop.forms import ProductReviewForm
 from shop.models import Product, ProductVariant
 from shop.recommendations import recommend_products
 from cart.forms import CartAddProductForm
+from wishlist.models import WishList, WishListItem
 
 
 def _approved_review_stats(prefetched_reviews):
@@ -60,6 +61,17 @@ def product_detail(request, id, slug):
     # Product recommendations (card 45ba5cfh): same-category products within a
     # configurable price band of the current product.  One indexed query.
     recommendations = recommend_products(product)
+    # Wish list state (card cc26292g): surface the saved line so the
+    # detail page can render a "remove / already saved" affordance instead of
+    # a second "add to wish list" button. Anonymous users get a login nudge.
+    wish_item = None
+    if request.user.is_authenticated:
+        try:
+            wish_item = request.user.wish_list.items.get(
+                product=product, variant__isnull=True,
+            )
+        except (WishListItem.DoesNotExist, WishList.DoesNotExist):
+            wish_item = None
     return render(
         request,
         'shop/product/detail.html',
@@ -71,5 +83,6 @@ def product_detail(request, id, slug):
             'average_rating': average_rating,
             'review_count': review_count,
             'recommendations': recommendations,
+            'wish_item': wish_item,
         }
     )

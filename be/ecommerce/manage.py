@@ -7,6 +7,11 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ecommerce.settings')
+    # Initialise Sentry (card 5ggb4929) for management commands so that
+    # unhandled exceptions in management commands are captured. No-op when
+    # SENTRY_DSN is unset or sentry-sdk is not installed.
+    from ecommerce.sentry import init_sentry
+    init_sentry()
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

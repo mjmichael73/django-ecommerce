@@ -4,14 +4,26 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from accounts.urls import password_reset_confirm_view
+from ecommerce.metrics.views import health_view, metrics_view
 
+# Metrics & health (card g37aggbd — Phase 4.1 monitoring). The /metrics
+# endpoint is always registered but returns 404 when
+# ``PROMETHEUS_ENABLED`` is falsy (see ``metrics_view``). /health is always
+# available for load-balancer probing.
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls', namespace='accounts')),
     path('cart/', include('cart.urls', namespace='cart')),
+    path('wishlist/', include('wishlist.urls', namespace='wishlist')),
     path('orders/', include('orders.urls', namespace='orders')),
     path('payment/', include('payment.urls', namespace='payment')),
     path('coupons/', include('coupons.urls', namespace='coupons')),
+    # Liveness/probe endpoint (always available, no auth required).
+    path('health/', health_view, name='health'),
+    # Prometheus metrics — mounted always, but the view 404s when disabled.
+    # Must come BEFORE the shop include (which has a <slug:category_slug> pattern
+    # that would otherwise match '/metrics' as a category slug).
+    path('metrics', metrics_view, name='metrics'),
     path('', include('shop.urls', namespace='shop')),
     # Django's built-in reset email (registration/password_reset_email.html)
     # reverses the *bare* name ``password_reset_confirm``. Accounts' URLs are

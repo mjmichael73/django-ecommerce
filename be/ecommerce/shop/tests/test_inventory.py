@@ -195,7 +195,9 @@ class WebhookInventoryTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         mock_decrement.assert_called_once_with(self.order)
-        mock_task.assert_called_once_with(self.order.id)
+        mock_task.assert_called_once()
+        _args, _kwargs = mock_task.call_args
+        self.assertEqual(_args[0], self.order.id)
         self.order.refresh_from_db()
         self.assertTrue(self.order.paid)
 
@@ -219,7 +221,9 @@ class WebhookInventoryTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         mock_decrement.assert_called_once_with(self.order)
-        mock_task.assert_called_once_with(self.order.id)
+        mock_task.assert_called_once()
+        _args, _kwargs = mock_task.call_args
+        self.assertEqual(_args[0], self.order.id)
 
     def test_invoice_task_still_dispatched_when_inventory_raises(
         self, mock_decrement, mock_task
@@ -233,7 +237,9 @@ class WebhookInventoryTests(TestCase):
         response = self._deliver(event)
 
         self.assertEqual(response.status_code, 200)
-        mock_task.assert_called_once_with(self.order.id)
+        mock_task.assert_called_once()
+        _args, _kwargs = mock_task.call_args
+        self.assertEqual(_args[0], self.order.id)
         self.order.refresh_from_db()
         self.assertTrue(self.order.paid)
 

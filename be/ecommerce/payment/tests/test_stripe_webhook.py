@@ -78,7 +78,11 @@ class StripeWebhookTests(TestCase):
         self.order.refresh_from_db()
         self.assertTrue(self.order.paid)
         self.assertEqual(self.order.stripe_id, 'pi_test_123')
-        mock_task.assert_called_once_with(self.order.id)
+        mock_task.assert_called_once()
+        _called_args, _called_kwargs = mock_task.call_args
+        self.assertEqual(_called_args[0], self.order.id)
+        # _request_id is forwarded from the webhook request context (card 6cc44f8g).
+        self.assertIn('_request_id', _called_kwargs)
 
     def test_non_numeric_client_reference_returns_400(self, mock_task):
         session = SimpleNamespace(

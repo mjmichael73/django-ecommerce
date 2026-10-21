@@ -233,6 +233,8 @@ LOGGING = {
 - [ ] Security headers configured
 - [x] Rate limiting enabled
 - [x] CSRF token rotation on login/registration/logout
+- [x] Content Security Policy headers
+- [x] Sentry error tracking (env-gated by SENTRY_DSN; auth + payment data scrubbed by default)
 - [ ] Input validation implemented
 - [ ] Dependencies updated
 - [ ] Security scan passed

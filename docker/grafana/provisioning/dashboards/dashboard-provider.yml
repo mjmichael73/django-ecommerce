@@ -1,0 +1,20 @@
+# Grafana dashboard provisioning.
+#
+# Card 3c3b2e3a — Phase 4.1 monitoring: Grafana dashboards.
+# Mounts the three dashboards from ./dashboards/ into Grafana on first boot
+# so no manual import step is required.
+#
+# Each dashboard JSON lives in the sibling ``dashboards/`` directory and is
+# referenced here by ``path``. Grafana provisions them automatically.
+apiVersion: 1
+
+providers:
+  - name: 'default'
+    orgId: 1
+    folder: 'Django E-commerce'
+    folderUid: 'django-ecommerce'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/provisioning/dashboards

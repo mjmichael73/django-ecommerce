@@ -20,7 +20,7 @@ A Django 5 demo shop with a session-based cart, checkout, **Stripe Checkout** pa
 | Queue | Celery 5 + RabbitMQ; Redis (shared instance) for Celery results            |
 | Pay   | [Stripe](https://stripe.com/)                                                 |
 | PDF   | [WeasyPrint](https://weasyprint.org/)                                         |
-| Ops   | [Flower](https://flower.readthedocs.io/) on :5555 with the default stack; optional nginx `reverse-proxy` profile |
+| Ops   | [Flower](https://flower.readthedocs.io/) on :5555 with the default stack; optional [nginx](https://nginx.org/) `reverse-proxy` profile; optional [Prometheus](https://prometheus.io/) + [Grafana](https://grafana.com/) `monitoring` profile (dashboards, card 3c3b2e3a) |
 
 ## Prerequisites
 
@@ -240,7 +240,7 @@ Proposed improvements (not implemented here; ideas for evolving the project):
 4. ~~**Stripe webhook locally** — Document or script Stripe CLI forwarding for reliable local webhook testing.~~ (Done: [docs/stripe-cli.md](docs/stripe-cli.md) — `stripe listen` forwarding to `localhost:8089/payment/webhook/`.)
 5. ~~**WeasyPrint + static files** — Ensure `static/css/pdf.css` is available at `STATIC_ROOT` in all environments (e.g. `collectstatic` in CI/deploy) so PDF generation does not depend on dev-only paths.~~ (Done: `ecommerce/pdf_stylesheet.py`, CI job, `make verify-pdf-static`.)
 6. ~~**Tests** — Add pytest (or Django’s test runner) coverage for checkout, webhooks (signed events), and coupon edge cases.~~ (Done: Django `TestCase` modules; `make test` via Compose; CI job.)
-7. **Observability** — Structured logging, request IDs, and Celery task failure alerts (e.g. Sentry).
+7. ~~**Observability** — Structured logging, request IDs, and Celery task failure alerts (e.g. Sentry).~~ (Done: JSON structured logging with `X-Request-Id` correlation IDs, sensitive-data redaction, and Celery task propagation — card 6cc44f8g. Prometheus metrics + IP-allowlisted `/metrics` and `/health` endpoints — card g37aggbd. Grafana dashboards (Prometheus + Grafana optional via `monitoring` Compose profile, 3 dashboards for HTTP/business/Celery metrics, auto-provisioned + validated) — card 3c3b2e3a. Remaining: Sentry.)
 8. **UX and catalog** — Search/faceted navigation, inventory flags, product images pipeline, and responsive polish.
 9. **Security** — CSRF/session review for payment return URLs, and periodic dependency updates.
 10. **Containerization** — Multi-stage image build, non-root user, and optional nginx sidecar for TLS and caching.
@@ -254,6 +254,7 @@ See the [docs/](docs/) folder for detailed documentation:
 - [Security](docs/security.md) — Security measures, configuration, and checklists
 - [Stripe CLI](docs/stripe-cli.md) — Local webhook forwarding with the Stripe CLI
 - [Production](docs/production.md) — Production deployment guide and checklist
+- [Monitoring](docs/monitoring.md) — Prometheus metrics, Grafana dashboards, and health checks
 - [Roadmap](docs/roadmap.md) — Future improvements and feature roadmap
 
 ## License
