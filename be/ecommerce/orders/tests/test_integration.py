@@ -171,7 +171,11 @@ class FullPurchaseFlowTests(IntegrationFixture):
         self.assertIn('order_id', self.client.session)
         self.assertEqual(self.client.session['order_id'], order.id)
 
-        _mock_order_task.assert_called_once_with(order.id)
+        # Order is created and the Celery task dispatched (with an optional
+        # _request_id kwarg for log correlation — card 6cc44f8g).
+        _mock_order_task.assert_called_once()
+        called_args, _called_kwargs = _mock_order_task.call_args
+        self.assertEqual(called_args[0], order.id)
 
     def test_checkout_then_payment_process_creates_stripe_session(
         self, _mock_order_task, _mock_pay_task

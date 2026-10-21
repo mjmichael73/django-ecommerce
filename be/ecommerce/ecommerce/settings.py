@@ -115,6 +115,11 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Request-ID correlation (card 6cc44f8g — structured logging). Must be
+    # outermost so the ID (and the X-Request-Id response header) is present on
+    # every response, including early rejections (429, SecurityMiddleware 301s,
+    # WhiteNoise static, CSP 403s).
+    'ecommerce.middleware.request_id.RequestIDMiddleware',
     # Content Security Policy header on every response (card f3d54f76).
     # Must stay outermost (position 0) so it wraps responses produced by all
     # inner layers — SecurityMiddleware SECURE_SSL_REDIRECT 301s,
@@ -366,3 +371,52 @@ CELERY_BROKER_URL = os.environ.get(
 )
 if os.environ.get('CELERY_RESULT_BACKEND'):
     CELERY_RESULT_BACKEND = os.environ['CELERY_RESULT_BACKEND']
+
+# ---------------------------------------------------------------------------
+# Structured logging (card 6cc44f8g — Phase 4.1 monitoring)
+#
+# ``LOGGING`` is assembled once at settings import time so ``django-admin
+# check`` and ``override_settings`` see a plain dict. The builder reads the
+# ``LOG_JSON`` / ``LOG_LEVEL`` knobs above and picks JSON output when Django
+# is running with DEBUG=False (production), plain text when DEBUG=True.
+# Override at runtime with the env knobs:
+#
+#   LOG_JSON=1      force JSON output (default when not DEBUG)
+#   LOG_JSON=0      force plain text (default when DEBUG)
+#   LOG_LEVEL=DEBUG/INFO/WARNING/ERROR/CRITICAL  (default INFO)
+#
+# Request correlation: ``RequestIDMiddleware`` (outermost in MIDDLEWARE)
+# generates ``X-Request-Id`` per request; the ``request_id`` filter injects it
+# into every record and the JSON formatter renders it as a stable top-level
+# field. Celery tasks inherit the ID if dispatched from within a request (see
+# ``ecommerce/celery.py``).
+# ---------------------------------------------------------------------------
+LOG_JSON = _env_bool('LOG_JSON', 'true' if not DEBUG else 'false')
+LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'filters': {
+        'request_id': {'()': 'ecommerce.logging.RequestIDLogFilter'},
+    },
+    'formatters': {
+        'json': {'()': 'ecommerce.logging.JSONFormatter'},
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'json',
+            'filters': ['request_id'],
+            'level': LOG_LEVEL,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': LOG_LEVEL,
+    },
+    'loggers': {
+        'django': {'level': LOG_LEVEL, 'propagate': True},
+        'django.request': {'level': LOG_LEVEL, 'propagate': True},
+        'django.server': {'level': LOG_LEVEL, 'propagate': True},
+    },
+}

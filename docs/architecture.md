@@ -430,3 +430,28 @@ never surface as a 500.
 - ✅ ALLOWED_HOSTS enforced when DEBUG=False
 - ✅ Rate limiting on checkout/coupon POSTs (429 + Retry-After)
 - ⚠️ Default Postgres credentials in docker-compose.yml
+
+## Observability (card 6cc44f8g)
+
+### Structured logging
+
+Every log line is a single-line JSON object on stdout with a stable field
+set (`timestamp`, `level`, `logger`, `message`, `request_id`). Output format
+and level are configurable via `LOG_JSON` and `LOG_LEVEL` env vars.
+
+**Request correlation:** `RequestIDMiddleware` (outermost in `MIDDLEWARE`)
+generates or accepts an `X-Request-Id` header per request, stores it in a
+`contextvars.ContextVar`, and echoes it on the response. The
+`RequestIDLogFilter` injects it into every log record, and the JSON
+formatter renders it as a top-level field.
+
+**Celery propagation:** checkout views call `propagate_request_id()` which
+forwards the active ID as a `_request_id` task kwarg; the worker rebinds
+the contextvar so task logs carry the originating request's correlation ID.
+
+**Sensitive data:** the JSON formatter redacts sensitive keys (matched by
+suffix: `password`, `token`, `secret`, `api_key`, `cvv`, etc.) from
+`extra` payloads. The `redact()` helper is exported for views/tasks that
+log request bodies or external API payloads.
+
+See [docs/structured-logging.md](structured-logging.md) for full details.
