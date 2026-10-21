@@ -484,4 +484,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Full-text search test module `shop.tests.test_full_text_search` (card bf247ef9)
 - [x] Faceted navigation test module `shop.tests.test_facets` (card 3g83heaa)
 - [x] Performance test module `ecommerce.tests.test_performance` (card e4e4dh4g) — query-budget and relative-slowdown regression tests for catalog listing, product detail, cart detail, and checkout POST endpoints
+- [x] Wishlist test module `wishlist.tests` (card cc26292g)
 - [ ] Test data fixtures created
