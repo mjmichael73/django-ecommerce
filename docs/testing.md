@@ -480,4 +480,14 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Faceted navigation test module `shop.tests.test_facets` (card 3g83heaa)
 - [x] AJAX cart updates test module `cart.tests.test_ajax` (card 77ce5899)
 - [x] Product recommendations test module `shop.tests.test_recommendations` (card 45ba5cfh)
-- [ ] Test data fixtures created
+- [x] Test data fixtures created
+- [x] Accounts form tests `accounts.tests.test_forms` — RegisterForm/ProfileForm validation
+- [x] Cart AJAX helper tests `cart.tests.test_ajax_helpers` — JSON response helpers
+- [x] Cart utils tests `cart.tests.test_cart_utils` — session-based cart helpers
+- [x] Coupon admin tests `coupons.tests.test_admin` — CouponAdmin configuration
+- [x] Order __str__ tests `orders.tests.test_order_str` — Order/OrderItem string representation
+- [x] Order admin tests `orders.tests.test_admin` — CSV export, payment link, refund actions
+- [x] Order tasks tests `orders.tests.test_tasks` — order_created, payment_completed tasks
+- [x] Payment process view tests `payment.tests.test_views` — Stripe Checkout session creation
+- [x] Shop cache key tests `shop.tests.test_cache_keys` — cache key helpers and invalidation
+- [x] Shop templatetag tests `shop.tests.test_templatetags` — dict_get, get_category_count, srcset
