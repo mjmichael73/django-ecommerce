@@ -107,7 +107,7 @@ init_sentry()
 _task_call = _CeleryTask.__call__
 
 
-def _tracing_call(self, args, kwargs):
+def _tracing_call(self, *args, **kwargs):
     """Rebind the request ID from the task context and record task metrics."""
     # Try the explicit kwarg first, then the message header.
     headers = getattr(self.request, 'headers', {}) or {}
@@ -125,7 +125,7 @@ def _tracing_call(self, args, kwargs):
     task_name = getattr(self, 'name', type(self).__name__)
     start = time.monotonic()
     try:
-        result = _task_call(self, args, kwargs)
+        result = _task_call(self, *args, **kwargs)
     except Exception:
         duration = time.monotonic() - start
         record_celery_task(task_name, 'failure', duration)
