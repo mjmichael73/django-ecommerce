@@ -77,6 +77,11 @@ services:
       SENTRY_DJANGO_ENABLED: ${SENTRY_DJANGO_ENABLED:-}
       LOG_JSON: ${LOG_JSON:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
+      # Native Django persistent connections (card a8g83e7c).
+      # Set to an integer number of seconds, e.g. 60, to reuse Postgres
+      # connections across requests; leave empty for Django's default (close
+      # per request). 0 explicitly disables reuse.
+      DB_CONN_MAX_AGE: ${DB_CONN_MAX_AGE:-}
     volumes:
       - media_data:/app/media
     depends_on:
@@ -154,6 +159,8 @@ services:
       SENTRY_DJANGO_ENABLED: ${SENTRY_DJANGO_ENABLED:-}
       LOG_JSON: ${LOG_JSON:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
+      # Native Django persistent connections (card a8g83e7c).
+      DB_CONN_MAX_AGE: ${DB_CONN_MAX_AGE:-}
     volumes:
       - media_data:/app/media
     depends_on:
@@ -202,6 +209,8 @@ services:
       STATIC_CDN_MANIFEST: ${STATIC_CDN_MANIFEST:-}
       LOG_JSON: ${LOG_JSON:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
+      # Native Django persistent connections (card a8g83e7c).
+      DB_CONN_MAX_AGE: ${DB_CONN_MAX_AGE:-}
     depends_on:
       rabbitmq:
         condition: service_healthy

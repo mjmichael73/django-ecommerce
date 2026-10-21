@@ -25,7 +25,7 @@ def postgres_database(env: Mapping[str, str]) -> dict:
             '(POSTGRES_DB is set). No default database credentials are '
             'allowed — put a real password in .env (see .env.example).'
         )
-    return {
+    config: dict = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': env.get('POSTGRES_DB', ''),
         'USER': env.get('POSTGRES_USER', 'ecommerce'),
@@ -33,3 +33,34 @@ def postgres_database(env: Mapping[str, str]) -> dict:
         'HOST': env.get('POSTGRES_HOST', 'localhost'),
         'PORT': env.get('POSTGRES_PORT', '5432'),
     }
+
+    # Native Django persistent-connection support (card a8g83e7c).
+    # DB_CONN_MAX_AGE maps to Django's CONN_MAX_AGE (seconds to keep a
+    # connection open across requests). When unset/empty the dict above is
+    # returned unchanged — byte-identical to the historical behaviour.
+    raw_max_age = env.get('DB_CONN_MAX_AGE', '')
+    if not raw_max_age:
+        # Unset or empty → no new keys, default behaviour preserved.
+        return config
+
+    try:
+        max_age = int(raw_max_age)
+    except (TypeError, ValueError):
+        raise ImproperlyConfigured(
+            'DB_CONN_MAX_AGE must be an integer (seconds). '
+            'Use 0 to disable persistent connections (Django default), '
+            'or a positive value (e.g. 60) to enable them.'
+        )
+
+    if max_age < 0:
+        raise ImproperlyConfigured(
+            'DB_CONN_MAX_AGE must not be negative.'
+        )
+
+    config['CONN_MAX_AGE'] = max_age
+    if max_age > 0:
+        # CONN_HEALTH_CHECKS only makes sense when connections are reused
+        # (CONN_MAX_AGE > 0); with 0 there is nothing to health-check.
+        config['CONN_HEALTH_CHECKS'] = True
+
+    return config

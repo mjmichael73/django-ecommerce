@@ -423,6 +423,52 @@ never surface as a 500.
 | PDF | WeasyPrint | HTML/CSS to PDF |
 | Auth | Django sessions | Simple, secure by default |
 
+## Database connection pooling (card a8g83e7c)
+
+Django manages persistent database connections natively via two settings
+(`CONN_MAX_AGE` and `CONN_HEALTH_CHECKS`), configured at runtime through the
+`DB_CONN_MAX_AGE` environment variable in `docker-compose.yml`. This repo does
+**not** run PgBouncer — connection reuse is handled per-process by Django
+itself.
+
+- `DB_CONN_MAX_AGE` is empty/unset → Django's default: one connection per
+  request, closed at the end of each request. No `CONN_MAX_AGE` or
+  `CONN_HEALTH_CHECKS` key is added to the database config dict at all.
+- `DB_CONN_MAX_AGE=0` → connections are explicitly closed after each request
+  (same runtime effect as the default, but the key is present).
+- `DB_CONN_MAX_AGE=<positive int, e.g. 60>` → Django keeps each process's
+  connection open for up to that many seconds and reuses it across requests,
+  which avoids the per-request connect/disconnect overhead. When a positive
+  value is set, `CONN_HEALTH_CHECKS=True` is also enabled so Django validates
+  the connection before reuse and recycles dead ones.
+
+The wiring lives in `ecommerce/db_config.py` (`postgres_database()`), keeping
+the same env-only pattern as the rest of the Postgres configuration.
+
+**Choice:** native Django persistent connections over PgBouncer for this
+application tier. PgBouncer in transaction pooling mode forces
+`CONN_MAX_AGE=0` (Django must open a new connection per request, because
+transaction-pooling cannot see a connection's state across requests); session
+pooling avoids that but requires manual server-side SELECTs to reset session
+state. Django's own reuse is sufficient here — the request profile is short,
+the worker count is bounded, and there is no need for a separate pooling
+process or its extra failure mode. PgBouncer remains a valid future option if
+connection counts outgrow Django's per-process cap; the only constraint is
+that, if it is introduced in transaction mode, `DB_CONN_MAX_AGE` must be
+unset/`0`.
+
+**Long-lived Celery workers:** Django closes idle connections on *request*
+boundaries (HTTP requests), but Celery workers have no request boundary — a
+worker process reuses one open connection for the lifetime of its tasks (and
+the process). When a positive `DB_CONN_MAX_AGE` is set, a worker that sits
+idle between task dispatches will hold a connection that may age out on the
+server side; `CONN_HEALTH_CHECKS` covers this for request reuse, but task code
+that holds a connection across long waits (or any background job that
+deliberately keeps state across `await`/sleep boundaries) should either rely
+on `CONN_HEALTH_CHECKS` or explicitly call `django.db.close_old_connections()`
+before and after the long wait. No Celery code changes ship with this card —
+this is guidance only.
+
 ## Security Considerations
 
 - ✅ SECRET_KEY required via Compose `${SECRET_KEY:?...}`
