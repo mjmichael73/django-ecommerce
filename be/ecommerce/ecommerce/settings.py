@@ -17,7 +17,7 @@ from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 
 from ecommerce.cache_config import cache_config
-from ecommerce.db_config import postgres_database
+from ecommerce.db_config import postgres_database, parse_replica_urls
 from ecommerce.social_auth_config import (
     ALLAUTH_APPS,
     ALLAUTH_MIDDLEWARE,
@@ -251,6 +251,17 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+
+# ---------------------------------------------------------------------------
+# Optional read replicas (card 79e887g9).
+# DB_REPLICA_URLS — comma-separated postgres URLs. When unset/empty/blank,
+# settings stay byte-identical to today: no DATABASE_ROUTERS, no aliases.
+# Only when replicas are configured do we add the aliases + the router.
+# ---------------------------------------------------------------------------
+_replica_aliases = parse_replica_urls(os.environ)
+if _replica_aliases:
+    DATABASES.update(_replica_aliases)
+    DATABASE_ROUTERS = ['ecommerce.db_router.PrimaryReplicaRouter']
 
 # Cache — used by rate limiting (card 25ahc7hg). Compose points
 # REDIS_CACHE_URL at the shared Redis instance, DB 2 (DB 1 is the Celery

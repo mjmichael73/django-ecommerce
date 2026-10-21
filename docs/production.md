@@ -32,6 +32,12 @@ POSTGRES_PASSWORD=<secure-password>
 # positive seconds (e.g. 60) = reuse connections, also enables CONN_HEALTH_CHECKS.
 DB_CONN_MAX_AGE=
 
+# Database: optional read replicas (card 79e887g9)
+# Comma-separated postgres:// URLs. Blank = no replicas (single primary, no routing).
+# When set, reads may be routed to a random replica; writes/migrations stay on default.
+# Ensure actual streaming replication exists before enabling; monitor replica lag.
+# DB_REPLICA_URLS=postgres://shop:pass@replica1:5432/shop,postgres://shop:pass@replica2:5432/shop
+
 # Redis
 REDIS_URL=redis://redis:6379/0
 
@@ -185,7 +191,7 @@ Use this before pointing a real domain or live Stripe keys at the app:
 |------|-------|
 | **Secrets** | `SECRET_KEY` is long, random, unique per environment; **never** committed (`.env` is gitignored). Rotate if it ever leaked. |
 | **Django** | `DEBUG=False`. `ALLOWED_HOSTS` lists only your domain(s) (never `*`). Set `CSRF_TRUSTED_ORIGINS` for each HTTPS origin. Use `DJANGO_BEHIND_PROXY=1` behind nginx/Traefik; run `make check-deploy`. |
-| **Database** | `POSTGRES_PASSWORD` is strong and not the sample `ecommerce` value. Restrict Postgres to internal networks only. Consider `DB_CONN_MAX_AGE` (positive seconds) to reuse connections; leave unset/`0` if running PgBouncer in transaction-pooling mode. |
+| **Database** | `POSTGRES_PASSWORD` is strong and not the sample `ecommerce` value. Restrict Postgres to internal networks only. Consider `DB_CONN_MAX_AGE` (positive seconds) to reuse connections; leave unset/`0` if running PgBouncer in transaction-pooling mode. If enabling `DB_REPLICA_URLS`, ensure actual streaming replication is configured first and monitor replica lag; reads are not read-after-write consistent (use `.using('default')` for flows that need the primary). |
 | **Stripe** | Live `STRIPE_*` keys and `STRIPE_WEBHOOK_SECRET`; webhook URL uses HTTPS and matches the deployed host. |
 | **Email** | Real `EMAIL_*` / SMTP or provider backend — not the console backend. |
 | **TLS** | Terminate TLS at nginx (this repo includes a proxy profile), Traefik, or your LB; do not expose Gunicorn publicly. Prefer redirects to HTTPS at the proxy; see `SECURE_SSL_REDIRECT` in `.env.example`. |
