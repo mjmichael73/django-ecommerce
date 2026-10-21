@@ -227,3 +227,51 @@ class ReturnRequestListTests(TestCase):
         resp = self.client.get(reverse('accounts:return_list'))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'no return requests')
+
+
+class OrderDetailReturnLinkTests(TestCase):
+    """The 'Request a return' link on the order detail page.
+
+    An order is returnable when it is paid and has a positive un-refunded
+    balance — a partial refund on one item must NOT hide the link for the
+    remaining items (card 4fcgcg9e review finding).
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='alice', email='alice@example.com', password='password'
+        )
+        self.client.force_login(self.user)
+
+    def test_return_link_shown_for_paid_fully_unrefunded_order(self):
+        order, _ = _make_order(user=self.user, paid=True)
+        resp = self.client.get(reverse('accounts:order_detail', args=[order.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Request a return')
+
+    def test_return_link_hidden_for_unpaid_order(self):
+        order, _ = _make_order(user=self.user, paid=False)
+        resp = self.client.get(reverse('accounts:order_detail', args=[order.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'Request a return')
+
+    def test_return_link_hidden_when_fully_refunded(self):
+        order, _ = _make_order(user=self.user, paid=True)
+        # Simulate a full refund recorded on the order row.
+        order.refunded_amount = Decimal('50.00')
+        order.save(update_fields=['refunded_amount'])
+        resp = self.client.get(reverse('accounts:order_detail', args=[order.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'Request a return')
+
+    def test_return_link_shown_after_partial_refund(self):
+        """A partial refund leaves remaining items returnable."""
+        order, item = _make_order(user=self.user, paid=True, price='50.00')
+        # Record a partial refund of $10 (the item cost), leaving $40 to return.
+        order.refunded_amount = Decimal('10.00')
+        order.save(update_fields=['refunded_amount'])
+        resp = self.client.get(reverse('accounts:order_detail', args=[order.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Request a return')

@@ -110,3 +110,12 @@ class Order(models.Model):
         if self.discount:
             return total_cost * (self.discount / Decimal(100))
         return Decimal(0)
+
+    def refundable_remaining(self) -> Decimal:
+        """How much of this order can still be refunded (total - refunded).
+
+        Used by the customer-facing return link: an order is returnable when
+        it is paid and this is positive — a partial refund on one item does
+        *not* hide the link for the remaining items.
+        """
+        return self.get_total_cost() - (self.refunded_amount or Decimal(0))

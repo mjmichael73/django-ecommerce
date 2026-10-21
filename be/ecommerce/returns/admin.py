@@ -8,8 +8,6 @@ idempotency checks so a double click, a webhook replay, or a repeated admin
 action cannot refund twice. Stripe errors are caught inside ``refund_order``
 and surfaced as admin messages, never as 500s.
 """
-from decimal import Decimal
-
 from django.contrib import admin, messages
 from django.utils import timezone
 
@@ -132,8 +130,6 @@ class ReturnRequestAdmin(admin.ModelAdmin):
                 ok, reason = refund_order(rr.order, amount=amount)
 
             if ok:
-                # Persist the resolution on the request row itself (targeted UPDATE).
-                update_fields = ['status', 'refunded_at', 'refund_id', 'updated']
                 # Read the stripe refund id from the order row that refund_order
                 # just wrote, so the admin audit trail has something concrete.
                 from orders.models import Order as _Order

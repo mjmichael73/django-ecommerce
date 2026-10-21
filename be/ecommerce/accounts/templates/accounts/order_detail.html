@@ -18,7 +18,7 @@
     {% if order.stripe_id %}
     <p><strong>Payment:</strong> <a href="{{ order.get_stripe_url }}" target="_blank" rel="noopener">{{ order.stripe_id }}</a></p>
     {% endif %}
-    {% if order.paid and not order.refunded_amount %}
+    {% if order.paid and order.refundable_remaining > 0 %}
     <p><a href="{% url 'accounts:order_return' order.pk %}" class="btn">Request a return</a></p>
     {% endif %}
     {% if order.refunded_amount %}
