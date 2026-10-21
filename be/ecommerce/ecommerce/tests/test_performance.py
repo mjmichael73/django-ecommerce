@@ -27,8 +27,12 @@ Design choices
   can assert ``assertLess(count, N)`` (a budget ceiling) rather than an exact
   match. Exact counts are brittle across backends and incidental middleware.
 
-* **Rate limits are overridden** so a burst of checkout POSTs does not hit
-  the 429 gate mid-test. The overrides are scoped to each test class.
+* **Rate limits are disabled** (``RATE_LIMIT_CHECKOUT=(0, 0)``) so a burst
+  of checkout POSTs never hits the 429 gate. The project's rate limiter
+  treats ``period <= 0`` as "disabled" (see ``rate_limit.py``), which is
+  cleaner than a high but finite cap — it avoids both 429s mid-suite *and*
+  leaking counter state into other test classes that share the LocMem
+  cache within a single runner process.
 
 * **Stripe is mocked** — ``order_create`` itself never talks to Stripe; that
   only happens in ``payment:process``. The Celery ``order_created.delay``
@@ -36,8 +40,9 @@ Design choices
 
 Environment limitations
 -----------------------
-* The tests run under the standard Docker Compose stack (SQLite fallback in
-  CI; PostgreSQL in the full stack via ``make up-d`` + ``make test``).
+* The tests run under the standard Docker Compose stack via ``make test``
+  or the equivalent ``docker compose run`` invocation, which uses the
+  shared PostgreSQL instance (see AGENTS.md: "shared-services").
   PostgreSQL-only search ranking is *not* asserted here — that lives in
   ``shop/tests/test_full_text_search.py``.
 
@@ -48,7 +53,7 @@ Environment limitations
 * These are *regression* tests, not a load-generation suite. For sustained
   load testing see the roadmap note on Locust (``docs/roadmap.md`` lists
   "Performance Tests | Locust | Load baselines"). Run those against a live
-  Compose stack with real Postgres, not the CI SQLite path.
+  Compose stack with real Postgres.
 """
 import time
 from decimal import Decimal
@@ -119,7 +124,7 @@ def _captured_query_count(context):
 # Listing endpoint performance
 # ---------------------------------------------------------------------------
 
-@override_settings(RATE_LIMIT_CHECKOUT=(1000, 3600))
+@override_settings(RATE_LIMIT_CHECKOUT=(0, 0))
 class ProductListPerformanceTests(TestCase):
     """Guard the SQL and time budget of the catalog listing endpoints.
 
@@ -140,7 +145,7 @@ class ProductListPerformanceTests(TestCase):
     def test_catalog_homepage_query_budget(self):
         """The plain listing must not exceed a bounded SQL budget.
 
-        Current baseline: ~14 queries on SQLite (categories, products+
+        Current baseline: ~14 queries on PostgreSQL (categories, products+
         annotation, four facet count aggregates, session save, template).
         We allow generous headroom so the test catches N+1 regressions
         rather than flakily failing on incidental query changes.
@@ -273,7 +278,7 @@ class ProductListPerformanceTests(TestCase):
 # Checkout endpoint performance
 # ---------------------------------------------------------------------------
 
-@override_settings(RATE_LIMIT_CHECKOUT=(1000, 3600))
+@override_settings(RATE_LIMIT_CHECKOUT=(0, 0))
 class CheckoutPerformanceTests(TestCase):
     """Guard the request cost of the checkout POST.
 
@@ -336,7 +341,7 @@ class CheckoutPerformanceTests(TestCase):
         payload = self._checkout_payload()
 
         # Small cart.
-        session = self._seed_cart(num_lines=1)
+        self._seed_cart(num_lines=1)
 
         with CaptureQueriesContext(connection) as context:
             self.client.post(url, payload)
