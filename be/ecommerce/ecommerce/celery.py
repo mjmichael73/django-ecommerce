@@ -88,13 +88,20 @@ app.autodiscover_tasks()
 # ``self.request`` and as a message header. We rebind the contextvar so the
 # worker's log filter picks up the correlation ID and task log lines trace
 # back to the originating HTTP request.
+#
+# We also record Prometheus metrics (card g37aggbd) for each task: count by
+# name + success/failure and a duration histogram. The metric recording is
+# best-effort — if ``prometheus_client`` is unavailable or metrics are
+# disabled, the no-op meter absorbs the calls.
+import time
+
 from celery import Task as _CeleryTask
 
 _task_call = _CeleryTask.__call__
 
 
 def _tracing_call(self, args, kwargs):
-    """Rebind the request ID from the task context before running."""
+    """Rebind the request ID from the task context and record task metrics."""
     # Try the explicit kwarg first, then the message header.
     headers = getattr(self.request, 'headers', {}) or {}
     rid = kwargs.pop('_request_id', None) or headers.get('request_id') or ''
@@ -104,7 +111,22 @@ def _tracing_call(self, args, kwargs):
             _var.set(rid)
         except Exception:
             pass
-    return _task_call(self, args, kwargs)
+
+    # Best-effort Prometheus instrumentation (card g37aggbd).
+    from ecommerce.metrics.business import record_celery_task
+
+    task_name = getattr(self, 'name', type(self).__name__)
+    start = time.monotonic()
+    try:
+        result = _task_call(self, args, kwargs)
+    except Exception:
+        duration = time.monotonic() - start
+        record_celery_task(task_name, 'failure', duration)
+        raise
+    else:
+        duration = time.monotonic() - start
+        record_celery_task(task_name, 'success', duration)
+        return result
 
 
 _CeleryTask.__call__ = _tracing_call

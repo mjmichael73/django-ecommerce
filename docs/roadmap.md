@@ -71,7 +71,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 ### 4.1 Monitoring
 - [ ] Add Sentry for error tracking
 - [x] Implement structured logging (JSON output, request-ID correlation via `X-Request-Id` header, sensitive-data redaction, Celery task propagation — card 6cc44f8g)
-- [ ] Add Prometheus metrics
+- [x] Add Prometheus metrics (card g37aggbd — bounded HTTP request latency/count/status, order revenue, Celery task counters, `/metrics` (IP-allowlisted) and `/health` endpoints)
 - [ ] Create Grafana dashboards
 
 ### 4.2 Deployment

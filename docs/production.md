@@ -168,12 +168,44 @@ docker exec redis redis-cli ping
 
 ### Prometheus
 
+The app exposes a `/metrics` endpoint (Prometheus text exposition) and a
+`/health/` endpoint (JSON DB probe) for load-balancer liveness/readiness
+checks.
+
+**Enabling metrics** — set `PROMETHEUS_ENABLED=1` in your `.env` (default is
+off; the app starts normally without any metrics overhead).
+
+**Protecting `/metrics`** — set `PROMETHEUS_METRICS_ALLOWED_IPS` to a
+comma-separated list of source IPs that may scrape (e.g. the Prometheus server's
+Docker-network IP, or `127.0.0.1` for local testing). Requests from non-allowlisted
+IPs get `403`. Leave empty for open access behind a restricted reverse proxy.
+
 ```yaml
 # prometheus.yml
 scrape_configs:
   - job_name: 'django-ecommerce'
     static_configs:
       - targets: ['web:8000']
+    metrics_path: '/metrics'
+```
+
+**Available metrics:**
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `django_http_requests_total` | Counter | `method`, `status` | HTTP requests by method (GET/POST/…) and status group (2xx/3xx/4xx/5xx) |
+| `django_http_request_duration_seconds` | Histogram | `method`, `status` | HTTP request latency |
+| `django_orders_total` | Counter | `status` | Orders created by Order.Status (PENDING/PAID/…) |
+| `django_orders_revenue_total` | Counter | `status` | Gross order revenue by status ($) |
+| `django_orders_refunded_total` | Counter | `order_id` | Refunded amount per order |
+| `django_celery_tasks_total` | Counter | `task`, `status` | Celery task completions by name + success/failure |
+| `django_celery_task_duration_seconds` | Histogram | `task` | Celery task execution time |
+
+**Health check:**
+
+```bash
+curl https://yourdomain.com/health/
+# {"status":"ok","timestamp":"2026-01-01T00:00:00Z","database":"ok"}
 ```
 
 ### Grafana

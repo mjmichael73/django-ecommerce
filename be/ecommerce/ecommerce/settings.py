@@ -134,6 +134,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Prometheus HTTP metrics (card g37aggbd). Inner so it wraps only real
+    # view logic. When PROMETHEUS_ENABLED is off the middleware is a pass-through
+    # (it calls get_response and returns without recording).
+    'ecommerce.metrics.middleware.PrometheusMetricsMiddleware',
 ]
 
 # -----------------------------------------------------------------------------
@@ -420,3 +424,31 @@ LOGGING = {
         'django.server': {'level': LOG_LEVEL, 'propagate': True},
     },
 }
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics (card g37aggbd — Phase 4.1 monitoring)
+#
+# ``PROMETHEUS_ENABLED`` (env, default off) turns on an optional Prometheus
+# metrics endpoint at ``/metrics`` plus per-request HTTP counters and latency
+# histograms, bounded-order/business counters, and Celery task stats. When the
+# flag is off the metrics module installs no-op meters so startup and request
+# paths are completely unaffected — ``prometheus_client`` is imported lazily
+# inside the registry and never touches request handling.
+#
+# The ``/metrics`` URL is wired in ecommerce/urls.py only when this flag is
+# set, so the endpoint 404s when metrics are disabled (no open exposure).
+# ---------------------------------------------------------------------------
+PROMETHEUS_ENABLED = _env_bool('PROMETHEUS_ENABLED', 'false')
+
+# Optional IP allowlist for the /metrics endpoint. When set (comma-separated),
+# only requests from these source IPs can scrape metrics — Prometheus can
+# pull from the internal Docker network IP; set to ``127.0.0.1`` for local.
+# Empty = open to any client that can reach the port (use behind a reverse
+# proxy that restricts access in production).
+_prom_ips = os.environ.get('PROMETHEUS_METRICS_ALLOWED_IPS', '')
+if _prom_ips.strip():
+    PROMETHEUS_METRICS_ALLOWED_IPS = {
+        ip.strip() for ip in _prom_ips.split(',') if ip.strip()
+    }
+else:
+    PROMETHEUS_METRICS_ALLOWED_IPS = set()

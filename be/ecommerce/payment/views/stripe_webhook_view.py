@@ -11,6 +11,7 @@ from orders.models import Order
 from orders.tasks import payment_completed
 from shop import inventory
 from ecommerce.middleware.request_id import propagate_request_id
+from ecommerce.metrics.business import record_order_paid
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,15 @@ def stripe_webhook(request):
                 status=Order.Status.PAID,
             )
             if updated == 1:
+                # Business metric: order paid (card g37aggbd). Record the
+                # revenue at the moment of payment.
+                try:
+                    record_order_paid(float(order.get_total_cost()))
+                except Exception:
+                    logger.exception(
+                        'failed to record order_paid metric for order %s',
+                        order_id,
+                    )
                 # Fraud evaluation (card 832hc4eg) — FLAG-ONLY, BEST-EFFORT.
                 # It scores the order and persists the signals; it never
                 # un-pays, blocks, or 40x's anything (the row is already paid

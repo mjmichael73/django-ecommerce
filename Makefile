@@ -97,7 +97,7 @@ test: ## Run Django tests via compose run (bind-mounts ./be/ecommerce; DB etc. m
 		-e REDIS_CACHE_URL= \
 		-v "$(CURDIR)/be/ecommerce:/app" \
 		-v media_data:/app/media \
-		$(WEB) python manage.py test ecommerce.tests orders.tests payment.tests coupons.tests accounts.tests shop.tests returns.tests wishlist.tests -v2
+		$(WEB) python manage.py test ecommerce.tests ecommerce.metrics.tests orders.tests payment.tests coupons.tests accounts.tests shop.tests returns.tests wishlist.tests -v2
 
 manage: ## Run any manage.py command, e.g. make manage ARGS='showmigrations'
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) exec $(WEB) python manage.py $(ARGS)
