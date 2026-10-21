@@ -60,6 +60,7 @@ from decimal import Decimal
 from statistics import mean
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.db import connection
 from django.test import Client, TestCase, override_settings
 from django.test.testcases import CaptureQueriesContext
@@ -67,6 +68,7 @@ from django.urls import reverse
 
 from orders.models import Order, OrderItem
 from shop.models import Category, Product, ProductReview
+from shop.views.product_list_view import PRODUCTS_PER_PAGE
 
 
 # ---------------------------------------------------------------------------
@@ -155,11 +157,12 @@ class ProductListPerformanceTests(TestCase):
         query_count = _captured_query_count(context)
         self.assertLess(query_count, 30, f'catalog homepage issued {query_count} queries')
         self.assertEqual(response.status_code, 200)
-        # The page should render every available product.
+        # The page renders up to the per-page slice, not every available
+        # product — pagination caps page 1 at PRODUCTS_PER_PAGE.
         rendered_products = response.context['products']
         self.assertEqual(
             rendered_products.count(),
-            Product.objects.filter(available=True).count(),
+            min(Product.objects.filter(available=True).count(), PRODUCTS_PER_PAGE),
         )
 
     def test_category_page_query_budget(self):
@@ -195,9 +198,24 @@ class ProductListPerformanceTests(TestCase):
 
         The facet counts are aggregates — they should not issue a per-product
         query. We assert that a catalog with 200 extra products still fits
-        within a small, fixed budget (well under 2x the baseline).
+        within a small, fixed budget.
+
+        Both measured GETs run in cache-MISS mode: line-A's listing caches
+        under a registered key that the ProductCounter invalidates on every
+        Product.objects.create(), so creating the 200-product catalog inside
+        the test would otherwise make the second GET a full re-compute while
+        the baseline GET rode a warm cache — comparing miss-mode vs hit-mode.
+        Clearing the cache before each measured GET puts both probes on the
+        same (MISS) footing.
+
+        Query count is capped per render by the pagination page slice
+        (PRODUCTS_PER_PAGE = 12), so a per-product N+1 can inflate the larger
+        catalog by at most ~12 queries while a constant render stays put —
+        ``large < baseline + 8`` stops a per-product N+1 while counting the
+        union render's constant badge/facet queries.
         """
-        # Measure the baseline catalog (created in setUpTestData).
+        # Measure the baseline catalog (created in setUpTestData), MISS-mode.
+        cache.clear()
         with CaptureQueriesContext(connection) as context:
             self.client.get(reverse('shop:product_list'))
         baseline_queries = _captured_query_count(context)
@@ -214,16 +232,22 @@ class ProductListPerformanceTests(TestCase):
                 available=True,
             )
 
+        # MISS-mode again: the creates above invalidate the listing's cache
+        # keys, so this GET would be a cold re-compute anyway — clear first
+        # so both probes are measured on identical (MISS) footing.
+        cache.clear()
         with CaptureQueriesContext(connection) as context:
             self.client.get(reverse('shop:product_list'))
         large_queries = _captured_query_count(context)
 
         # Queries should grow by at most a small constant, not by O(N).
-        # 2x the baseline is a generous ceiling; a regression that fires a
-        # query per product would blow past it immediately.
+        # Both probes ran MISS-mode on the same footing (see docstring), and
+        # the page slice caps any per-product N+1 at PRODUCTS_PER_PAGE:
+        # +8 headroom over the baseline catches that regression while letting
+        # the constant union-render queries through.
         self.assertLess(
             large_queries,
-            baseline_queries * 2,
+            baseline_queries + 8,
             f'catalog with 200+ products issued {large_queries} queries '
             f'vs baseline {baseline_queries}',
         )

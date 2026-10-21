@@ -7,9 +7,9 @@ from orders.models import Order
 def admin_order_detail(request, order_id):
     order = get_object_or_404(
         Order.objects.only(
-            'id', 'created', 'paid', 'discount', 'first_name', 'last_name',
-            'email', 'address', 'postal_code', 'city', 'stripe_id',
-            'fraud_score', 'is_flagged', 'fraud_notes',
+            'id', 'created', 'paid', 'discount', 'status', 'first_name',
+            'last_name', 'email', 'address', 'postal_code', 'city',
+            'stripe_id', 'fraud_score', 'is_flagged', 'fraud_notes',
         ).prefetch_related('items', 'items__product'),
         id=order_id,
     )

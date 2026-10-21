@@ -9,7 +9,7 @@ from orders.models import Order
 @login_required
 def order_list(request):
     orders = Order.objects.filter(user=request.user).only(
-        'id', 'created', 'paid', 'discount',
+        'id', 'created', 'paid', 'discount', 'status',
     ).prefetch_related(
         'items',
     )
@@ -24,8 +24,9 @@ def order_list(request):
 def order_detail(request, pk):
     order = get_object_or_404(
         Order.objects.only(
-            'id', 'created', 'paid', 'discount', 'first_name', 'last_name',
-            'email', 'address', 'postal_code', 'city', 'stripe_id',
+            'id', 'created', 'paid', 'discount', 'status', 'first_name',
+            'last_name', 'email', 'address', 'postal_code', 'city',
+            'stripe_id', 'refunded_amount',
         ).prefetch_related('items', 'items__product'),
         pk=pk,
         user=request.user,

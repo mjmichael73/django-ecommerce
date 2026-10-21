@@ -73,9 +73,11 @@ class OrderDetailQueryCountTests(TestCase):
         # template's two ``order.get_total_cost`` accesses and the
         # ``item.product.name`` lookups must all be served from the cache, so
         # the total stays bounded regardless of how many line items exist.
+        # Union renders also check for an existing return request and the
+        # wishlist badge: +1–2 constant queries per render, not N+1.
         self.assertLessEqual(
             len(ctx.captured_queries),
-            8,
+            10,
             'order_detail issued too many queries: '
             + str([q['sql'] for q in ctx.captured_queries]),
         )
@@ -158,10 +160,11 @@ class AdminOrderDetailQueryCountTests(TestCase):
             response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         # 1 (order) + 1 (items) + 1 (products) prefetch, plus auth/session and
-        # savepoint machinery — but crucially NOT one query per item.
+        # savepoint machinery — but crucially NOT one query per item. Union
+        # renders add the wishlist badge: +1 constant query per render, not N+1.
         self.assertLessEqual(
             len(ctx.captured_queries),
-            8,
+            9,
             'admin_order_detail issued too many queries: '
             + str([q['sql'] for q in ctx.captured_queries]),
         )
@@ -339,9 +342,11 @@ class OrderOnlyQueryCountTests(TestCase):
         self.assertEqual(response.status_code, 200)
         # Order only() (1) + items prefetch (1) + products prefetch (1) +
         # session/auth overhead. No N+1 per item, no unnecessary field loading.
+        # Union renders add the return-request check + wishlist badge:
+        # +1–2 constant queries per render, not N+1.
         self.assertLessEqual(
             len(ctx.captured_queries),
-            8,
+            10,
             'order_detail issued too many queries: '
             + str([q['sql'] for q in ctx.captured_queries]),
         )
@@ -361,9 +366,10 @@ class OrderOnlyQueryCountTests(TestCase):
         with CaptureQueriesContext(connection) as ctx:
             response = staff_client.get(url)
         self.assertEqual(response.status_code, 200)
+        # Union renders add the wishlist badge: +1 constant query per render.
         self.assertLessEqual(
             len(ctx.captured_queries),
-            8,
+            9,
             'admin_order_detail issued too many queries: '
             + str([q['sql'] for q in ctx.captured_queries]),
         )

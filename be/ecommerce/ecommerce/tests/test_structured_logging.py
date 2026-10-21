@@ -523,9 +523,13 @@ class CeleryTaskTracingTests(SimpleTestCase):
         try:
             # Patch _task_call so we don't invoke real Celery task execution.
             with patch('ecommerce.celery._task_call', return_value=None) as mock_call:
-                _tracing_call(fake_self, (), {'_request_id': 'worker-req-42'})
-                # The _request_id kwarg is consumed (popped) before delegating.
-                mock_call.assert_called_once_with(fake_self, (), {})
+                # Real Celery invokes Task.__call__(self, *args, **kwargs) with
+                # genuine Python kwargs — pass _request_id as a keyword, not a
+                # positional dict.
+                _tracing_call(fake_self, (), _request_id='worker-req-42')
+                # The _request_id kwarg is consumed (popped) before delegating:
+                # the passthrough args tuple arrives, no _request_id kwarg.
+                mock_call.assert_called_once_with(fake_self, ())
             self.assertEqual(request_id_var.get(), 'worker-req-42')
         finally:
             request_id_var.reset(token)
