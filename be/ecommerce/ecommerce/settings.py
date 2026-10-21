@@ -392,7 +392,7 @@ if os.environ.get('CELERY_RESULT_BACKEND'):
 # ``ecommerce/celery.py``).
 # ---------------------------------------------------------------------------
 LOG_JSON = _env_bool('LOG_JSON', 'true' if not DEBUG else 'false')
-LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
+LOG_LEVEL = (os.environ.get('LOG_LEVEL', '') or 'INFO').upper()
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,

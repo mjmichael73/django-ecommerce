@@ -121,9 +121,11 @@ def propagate_request_id() -> dict:
     an empty dict when no request ID is active (e.g. periodic tasks), so
     callers can splat it unconditionally.
 
-    The value is passed both as a task kwarg (``_request_id``) and as a
-    Celery message header (``request_id``) so it survives broker round-trips
-    and is readable by the worker's task-execution hook.
+    The value is passed as a task kwarg (``_request_id``) which Celery
+    surfaces on the worker's ``Task.request``; the task-tracing hook in
+    ``ecommerce/celery.py`` reads it from ``self.request`` (or message headers
+    when present) and rebinds the contextvar so log lines emitted by the task
+    carry the originating request ID.
     """
     rid = _request_id_var.get('')
     if not rid:

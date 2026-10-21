@@ -10,6 +10,7 @@ from orders.fraud import evaluate, flag_threshold
 from orders.models import Order
 from orders.tasks import payment_completed
 from shop import inventory
+from ecommerce.middleware.request_id import propagate_request_id
 
 logger = logging.getLogger(__name__)
 
@@ -102,8 +103,10 @@ def stripe_webhook(request):
                         'inventory decrement failed for order %s', order_id,
                     )
                 # Launch asynchronous task for payment completed —
-                # unconditional inside the idempotency gate, above.
-                payment_completed.delay(order.id)
+                # unconditional inside the idempotency gate, above. The active
+                # request ID is forwarded so the task's log lines carry it
+                # for end-to-end correlation (card 6cc44f8g).
+                payment_completed.delay(order.id, **propagate_request_id())
     elif event.type == 'charge.refunded':
         # Inbound truth for refunds (card a3cg42c4). A refund issued in the
         # Stripe dashboard (or anywhere else outside this app) arrives here,

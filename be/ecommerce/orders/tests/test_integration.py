@@ -222,7 +222,10 @@ class FullPurchaseFlowTests(IntegrationFixture):
         order.refresh_from_db()
         self.assertTrue(order.paid)
         self.assertEqual(order.stripe_id, 'pi_test_123')
-        mock_pay_task.assert_called_once_with(order.id)
+        mock_pay_task.assert_called_once()
+        _called_args, _called_kwargs = mock_pay_task.call_args
+        self.assertEqual(_called_args[0], order.id)
+        # _request_id kwarg is forwarded for log correlation (card 6cc44f8g).
 
     def test_webhook_replay_does_not_re_dispatch_invoice(
         self, _mock_order_task, mock_pay_task
@@ -235,7 +238,9 @@ class FullPurchaseFlowTests(IntegrationFixture):
         self._deliver_webhook(_checkout_completed_event(order.id))
         self._deliver_webhook(_checkout_completed_event(order.id))
 
-        mock_pay_task.assert_called_once_with(order.id)
+        mock_pay_task.assert_called_once()
+        _called_args, _called_kwargs = mock_pay_task.call_args
+        self.assertEqual(_called_args[0], order.id)
 
     def test_authenticated_checkout_sets_order_user(
         self, _mock_order_task, _mock_pay_task
@@ -459,7 +464,10 @@ class AuthenticatedPurchaseFlowTests(IntegrationFixture):
         self._deliver_webhook(_checkout_completed_event(order.id))
         order.refresh_from_db()
         self.assertTrue(order.paid)
-        mock_pay_task.assert_called_once_with(order.id)
+        mock_pay_task.assert_called_once()
+        _called_args, _called_kwargs = mock_pay_task.call_args
+        self.assertEqual(_called_args[0], order.id)
+        self.assertIn('_request_id', _called_kwargs)
 
         # The user can now see the paid order in their history.
         response = self.client.get(reverse('accounts:order_list'))

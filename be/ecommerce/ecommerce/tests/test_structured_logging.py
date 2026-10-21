@@ -496,3 +496,73 @@ class CheckoutRequestIDPropagationTests(TestCase):
         mock_delay.assert_called_once()
         _args, kwargs = mock_delay.call_args
         self.assertEqual(kwargs.get('_request_id'), rid)
+
+
+# ---------------------------------------------------------------------------
+# Celery task-tracing hook: contextvar rebinding on the worker
+# ---------------------------------------------------------------------------
+
+class CeleryTaskTracingTests(SimpleTestCase):
+    """The ``Task.__call__`` override in ``ecommerce/celery.py`` rebinds the
+    ``request_id`` contextvar from the ``_request_id`` task kwarg so that log
+    lines emitted inside a worker carry the originating request's ID."""
+
+    def test_tracing_call_rebinds_contextvar_from_kwarg(self):
+        from ecommerce.celery import _tracing_call
+        from ecommerce.logging import request_id as request_id_var
+
+        class FakeRequest:
+            headers = {}
+
+        class FakeSelf:
+            request = FakeRequest()
+
+        fake_self = FakeSelf()
+
+        token = request_id_var.set('')
+        try:
+            # Patch _task_call so we don't invoke real Celery task execution.
+            with patch('ecommerce.celery._task_call', return_value=None) as mock_call:
+                _tracing_call(fake_self, (), {'_request_id': 'worker-req-42'})
+                # The _request_id kwarg is consumed (popped) before delegating.
+                mock_call.assert_called_once_with(fake_self, (), {})
+            self.assertEqual(request_id_var.get(), 'worker-req-42')
+        finally:
+            request_id_var.reset(token)
+
+    def test_tracing_call_rebinds_from_headers_when_kwarg_absent(self):
+        from ecommerce.celery import _tracing_call
+        from ecommerce.logging import request_id as request_id_var
+
+        class FakeRequest:
+            headers = {'request_id': 'from-header-99'}
+
+        class FakeSelf:
+            request = FakeRequest()
+
+        token = request_id_var.set('')
+        try:
+            with patch('ecommerce.celery._task_call', return_value=None):
+                _tracing_call(FakeSelf(), (), {})
+            self.assertEqual(request_id_var.get(), 'from-header-99')
+        finally:
+            request_id_var.reset(token)
+
+    def test_tracing_call_does_not_clear_when_no_id_present(self):
+        from ecommerce.celery import _tracing_call
+        from ecommerce.logging import request_id as request_id_var
+
+        class FakeRequest:
+            headers = {}
+
+        class FakeSelf:
+            request = FakeRequest()
+
+        token = request_id_var.set('')
+        try:
+            with patch('ecommerce.celery._task_call', return_value=None):
+                _tracing_call(FakeSelf(), (), {})
+            # No ID to bind — contextvar stays at its previous (empty) value.
+            self.assertEqual(request_id_var.get(''), '')
+        finally:
+            request_id_var.reset(token)

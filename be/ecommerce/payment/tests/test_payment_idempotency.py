@@ -53,7 +53,10 @@ class WebhookIdempotencyTests(TestCase):
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
-        mock_task.assert_called_once_with(self.order.id)
+        mock_task.assert_called_once()
+        _called_args, _called_kwargs = mock_task.call_args
+        self.assertEqual(_called_args[0], self.order.id)
+        self.assertIn('_request_id', _called_kwargs)
         self.order.refresh_from_db()
         self.assertTrue(self.order.paid)
         self.assertEqual(self.order.stripe_id, 'pi_test_123')

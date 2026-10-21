@@ -251,8 +251,10 @@ class OrderTrackWebhookStatusTests(TestCase):
         self.assertTrue(self.order.paid)
         self.assertEqual(self.order.status, Order.Status.PAID)
         self.assertEqual(self.order.stripe_id, 'pi_test_123')
-        mock_pay_task.assert_called_once_with(self.order.id)
-
+        mock_pay_task.assert_called_once()
+        _args, _kwargs = mock_pay_task.call_args
+        self.assertEqual(_args[0], self.order.id)
+        # _request_id forwarded from webhook request (card 6cc44f8g).
     def test_webhook_replay_does_not_re_transition_status(
         self, mock_pay_task, mock_order_task
     ):
@@ -261,7 +263,9 @@ class OrderTrackWebhookStatusTests(TestCase):
         # the invoice task must NOT fire again.
         resp = self._deliver(mock_pay_task, mock_order_task)
         self.assertEqual(resp.status_code, 200)
-        mock_pay_task.assert_called_once_with(self.order.id)
+        mock_pay_task.assert_called_once()
+        _args, _kwargs = mock_pay_task.call_args
+        self.assertEqual(_args[0], self.order.id)
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.PAID)
 

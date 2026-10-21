@@ -416,5 +416,8 @@ class RefundWebhookTests(TestCase):
         self.assertTrue(order.paid)
         self.assertEqual(order.stripe_id, 'pi_test_123')
         self.assertEqual(order.refunded_amount, Decimal('10.50'))
-        mock_task.assert_called_once_with(order.id)
+        mock_task.assert_called_once()
+        _called_args, _called_kwargs = mock_task.call_args
+        self.assertEqual(_called_args[0], order.id)
+        self.assertIn('_request_id', _called_kwargs)
         mock_create.assert_not_called()
