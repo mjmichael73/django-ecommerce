@@ -64,7 +64,6 @@ class OrderCreatedTaskTests(OrderTaskFixture):
         self.assertEqual(args[0][0], f'Order nr. {order.id}')
         # The email goes to the order's email address
         self.assertIn(order.email, args[0][3])
-        self.assertIn(order.email, args[0][3])
 
     @patch('orders.tasks.order_created_task.send_mail')
     def test_subject_contains_order_id(self, mock_send):
