@@ -73,6 +73,12 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r ../requirements.txt
       - name: Django tests
+        # NOTE: ``ecommerce.tests`` is a package label, so Django's DiscoverRunner
+        # recursively loads every ``ecommerce/tests/test_*.py`` (this includes
+        # test_k8s_manifests, whose validator runs in CI because the full checkout
+        # is present — it only skips inside the app image where k8s/ is absent).
+        # Do NOT append ``ecommerce.tests.test_k8s_manifests`` as a second label:
+        # that would double-run the module.
         run: >-
           python manage.py test ecommerce.tests ecommerce.tests.sentry
           ecommerce.metrics.tests orders.tests payment.tests coupons.tests

@@ -16,7 +16,7 @@ k8s/
 │   ├── deployment-worker.yaml  # celery worker (command override)
 │   ├── deployment-beat.yaml    # celery beat (command override; no periodic tasks by default)
 │   ├── service-web.yaml        # ClusterIP 80 -> 8000
-│   └── kustomization.yaml      # base resources + image anchor (ghcr.io/mjmichael73/django-ecommerce:main)
+│   └── kustomization.yaml      # base resources + image anchor (ghcr.io/mjmichael73/django-ecommerce:latest)
 ├── overlays/dev/               # DEBUG=1, 1 replica, placeholder secrets
 └── overlays/prod/              # DEBUG=0, 3 web replicas, tightened limits
 ```

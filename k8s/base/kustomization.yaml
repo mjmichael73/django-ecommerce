@@ -20,10 +20,13 @@ resources:
 
 # Image override anchor — overlays inherit; prod overrides the tag via
 # `images: [{name, newTag}]`. Mirrors the CI GHCR publish name exactly.
+# CI publishes `ghcr.io/<owner>/<repo>:latest` (and `:sha-<short>` on main);
+# the anchored tag here is `latest` so a clean `kustomize build` resolves an
+# image that actually exists. Prod overlays pin a specific sha tag.
 images:
   - name: ghcr.io/mjmichael73/django-ecommerce
-    newTag: main
+    newTag: latest
     # The web/worker/beat containers all reference `ghcr.io/mjmichael73/django-ecommerce:latest`;
     # Kustomize rewrites the image name to the anchored name + newTag. To allow
     # overlays to override only the tag, the base uses `latest` here so a prod
-    # overlay can set newTag: <sha> without re-declaring the name.
+    # overlay can set newTag: sha-<short> without re-declaring the name.
