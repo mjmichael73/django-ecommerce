@@ -14,6 +14,7 @@
     {{ order.email }}<br>
     {{ order.address }}, {{ order.postal_code }} {{ order.city }}</p>
     <p><strong>Status:</strong> {% if order.paid %}Paid{% else %}Pending payment{% endif %}</p>
+    <p><strong>Tracking status:</strong> {{ order.get_status_display }}</p>
     {% if order.stripe_id %}
     <p><strong>Payment:</strong> <a href="{{ order.get_stripe_url }}" target="_blank" rel="noopener">{{ order.stripe_id }}</a></p>
     {% endif %}

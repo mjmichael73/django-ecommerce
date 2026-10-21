@@ -1,0 +1,78 @@
+{% extends "shop/base.html" %}
+
+{% block title %}Track order · Studio Market{% endblock %}
+
+{% load static %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="page-head__title">Track your order</h1>
+  <p class="page-head__crumb">
+    Enter your order number and the email address you used at checkout to see
+    the latest status.
+  </p>
+</div>
+
+<div class="checkout-grid">
+  <div class="order-form-panel">
+    <form method="post" action="{% url 'accounts:order_track' %}" class="track-form">
+      {% csrf_token %}
+      <div class="field-group">
+        <label for="id_order_id">Order number</label>
+        <input
+          type="number"
+          name="order_id"
+          id="id_order_id"
+          min="1"
+          required
+          placeholder="e.g. 1234"
+        />
+      </div>
+      <div class="field-group">
+        <label for="id_email">Email address</label>
+        <input
+          type="email"
+          name="email"
+          id="id_email"
+          required
+          placeholder="you@example.com"
+        />
+      </div>
+      <button type="submit" class="btn">Track order</button>
+    </form>
+  </div>
+
+  {% if error %}
+  <aside class="order-info">
+    <div class="panel panel--narrow">
+      <p class="status-hero status-hero--error">
+        <span class="status-hero__icon" aria-hidden="true">!</span>
+        {{ error }}
+      </p>
+    </div>
+  </aside>
+  {% endif %}
+
+  {% if order %}
+  <aside class="order-info">
+    <h3>Order #{{ order.id }}</h3>
+    <div class="track-status">
+      <p class="track-status__state">
+        <strong>{{ order.get_status_display }}</strong>
+      </p>
+      <p class="track-status__hint">
+        {% if order.paid %}
+          This order has been paid.
+        {% else %}
+          This order is pending payment.
+        {% endif %}
+      </p>
+      <p class="track-status__meta">
+        Placed {{ order.created|date:"M j, Y" }} &middot;
+        Updated {{ order.updated|date:"M j, Y" }}
+      </p>
+    </div>
+  </aside>
+  {% endif %}
+</div>
+{% endblock %}

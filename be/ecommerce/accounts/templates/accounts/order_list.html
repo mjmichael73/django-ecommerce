@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-head">
   <h1 class="page-head__title">Order history</h1>
-  <p class="page-head__crumb">Orders placed while you were signed in</p>
+  <p class="page-head__crumb"><a href="{% url 'accounts:order_track' %}">Track an order</a> · Orders placed while you were signed in</p>
 </div>
 {% if orders %}
 <div class="order-history">
@@ -23,7 +23,7 @@
       <tr>
         <td><a href="{% url 'accounts:order_detail' order.pk %}">#{{ order.id }}</a></td>
         <td>{{ order.created|date:"M j, Y" }}</td>
-        <td>{% if order.paid %}Paid{% else %}Pending{% endif %}</td>
+        <td>{{ order.get_status_display }}</td>
         <td>${{ order.get_total_cost|floatformat:2 }}</td>
       </tr>
       {% endfor %}

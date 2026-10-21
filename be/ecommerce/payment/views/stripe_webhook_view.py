@@ -46,9 +46,18 @@ def stripe_webhook(request):
             # and concurrent duplicates must be no-ops. The guarded UPDATE
             # flips paid only once (first delivery wins) and never rewrites
             # the stripe_id recorded by that first payment.
-            updated = Order.objects.filter(id=order_id, paid=False).update(
+            # Idempotency: Stripe delivers webhooks at-least-once, so replays
+            # and concurrent duplicates must be no-ops. The guarded UPDATE
+            # flips paid only once (first delivery wins) and never rewrites
+            # the stripe_id recorded by that first payment. The status is
+            # advanced to PAID by the same atomic guard so a replay never
+            # re-transitions it.
+            updated = Order.objects.filter(
+                id=order_id, paid=False,
+            ).update(
                 paid=True,
                 stripe_id=session.payment_intent,
+                status=Order.Status.PAID,
             )
             if updated == 1:
                 # Fraud evaluation (card 832hc4eg) — FLAG-ONLY, BEST-EFFORT.

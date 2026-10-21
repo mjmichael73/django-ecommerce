@@ -120,6 +120,7 @@ class OrderAdmin(admin.ModelAdmin):
         'postal_code',
         'city',
         'paid',
+        'status',
         order_payment,
         'refund_id',
         'refunded_amount',
@@ -130,6 +131,6 @@ class OrderAdmin(admin.ModelAdmin):
         order_detail,
         order_pdf,
     ]
-    list_filter = ['paid', 'created', 'updated', 'is_flagged']
+    list_filter = ['paid', 'status', 'created', 'updated', 'is_flagged']
     inlines = [OrderItemInline]
     actions = [export_to_csv, mark_rules_reviewed, issue_full_refund]

@@ -60,6 +60,26 @@ class Order(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
 
+    # Order lifecycle status (card ee76485f) — surfaced to customers on the
+    # order history/detail pages and via the public tracking lookup. The
+    # initial state is PENDING; the Stripe webhook flips it to PAID
+    # (idempotently, behind the same gate that sets paid=True). Further
+    # transitions are analyst-driven (admin actions) — nothing in the app
+    # auto-promotes beyond PAID.
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        PAID = 'PAID', 'Paid'
+        PROCESSING = 'PROCESSING', 'Processing'
+        SHIPPED = 'SHIPPED', 'Shipped'
+        DELIVERED = 'DELIVERED', 'Delivered'
+        CANCELED = 'CANCELED', 'Canceled'
+
+    status = models.CharField(
+        max_length=12,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
     class Meta:
         ordering = ['-created']
         indexes = [

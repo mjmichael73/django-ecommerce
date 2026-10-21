@@ -52,6 +52,7 @@ urlpatterns = [
     path('profile/', views.profile, name='profile'),
     path('orders/', views.order_list, name='order_list'),
     path('orders/<int:pk>/', views.order_detail, name='order_detail'),
+    path('tracking/', views.order_track, name='order_track'),
     path(
         'password-reset/',
         password_reset_view,

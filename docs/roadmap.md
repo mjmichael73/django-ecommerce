@@ -41,7 +41,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [ ] Create wish lists
 
 ### 2.3 Order Management
-- [ ] Add order tracking
+- [x] Add order tracking (card ee76485f; `accounts/tests/test_order_tracking.py`, `ecommerce/tests/test_rate_limit.py`)
 - [ ] Implement order history
 - [ ] Add return/refund flow
 - [ ] Create admin dashboard
