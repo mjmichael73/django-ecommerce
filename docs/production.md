@@ -287,12 +287,16 @@ make grafana-dashboards-validate   # standalone JSON/provisioning validator
 
 ### Database Backup
 
-```bash
-# Backup
-docker compose exec postgres pg_dump -U postgres ecommerce > backup.sql
+The recommended operational backup procedure lives in `docs/backup-restore.md`
+(card 36d3gdd6 — Phase 4.2). It runs one-shot `pg_dump -Fc` + media tar via a
+profile-gated `:backup` Compose service using the official `postgres:18-alpine`
+image, with a safe restore drill that never touches the live database.
 
-# Restore
-docker compose exec -T postgres psql -U postgres ecommerce < backup.sql
+```bash
+# Verify a dump:
+make backup-restore ARGS=backups/db-<ts>.dump
+# Restore into the scratch db 'ecommerce_restore_drill' only:
+make backup-restore ARGS=backups/db-<ts>.dump CONFIRM=scratch
 ```
 
 ### Automated Backups

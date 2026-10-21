@@ -2,7 +2,8 @@
 .PHONY: help build up up-d up-detached up-proxy up-d-proxy up-d-flower down logs logs-web ps \
 	restart-web restart-worker migrate makemigrations seed createsuperuser shell \
 	collectstatic verify-pdf-static test manage sh check-deploy flower down-volumes clean \
-	up-monitoring monitoring-down grafana-dashboards-validate
+	up-monitoring monitoring-down grafana-dashboards-validate \
+	backup backup-restore backup-redis backup-dry-run
 
 COMPOSE ?= docker compose
 WEB := web
@@ -53,6 +54,37 @@ monitoring-down: ## Stop the optional monitoring stack (keeps prometheus/grafana
 
 grafana-dashboards-validate: ## Validate Grafana dashboard JSON structure (standalone script)
 	@python3 docker/grafana/scripts/validate_dashboards.py
+
+backup-dry-run: ## Backup: dry-run (print planned actions, write nothing)
+	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) --profile backup run --rm \
+		--entrypoint sh \
+		-e BACKUP_KEEP_N="$(BACKUP_KEEP_N)" \
+		backup /backup/backup.sh --dry-run
+
+backup: ## Backup: one-shot DB + media dump to ./backups/ (profile: backup)
+	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) --profile backup run --rm \
+		-e BACKUP_KEEP_N="$(BACKUP_KEEP_N)" \
+		backup
+
+backup-restore: ## Backup: restore/verify a dump (ARGS="backups/<file>.dump"); use CONFIRM=scratch to restore into the scratch db
+	@if [ -z "$(ARGS)" ]; then \
+		echo "usage: make backup-restore ARGS=backups/db-<ts>.dump [CONFIRM=scratch]"; \
+		exit 2; \
+	fi
+	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) --profile backup run --rm \
+		--entrypoint sh \
+		-e CONFIRM="$(CONFIRM)" \
+		-e KEEP_SCRATCH="$(KEEP_SCRATCH)" \
+		backup /backup/restore.sh "$(ARGS)"
+
+backup-redis: ## Backup: optional Redis RDB dump (requires BACKUP_REDIS=1)
+	@if [ -z "$(BACKUP_REDIS)" ]; then \
+		echo "set BACKUP_REDIS=1 to enable Redis backups"; \
+		exit 1; \
+	fi
+	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) --profile backup run --rm \
+		-e BACKUP_REDIS="$(BACKUP_REDIS)" \
+		redis-backup
 
 down: ## Stop stack (keeps volumes / database data)
 	@$(COMPOSE_PARSE_ONLY_ENV) $(COMPOSE) down

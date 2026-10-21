@@ -230,6 +230,46 @@ services:
       - shared-services-network
 
   # ---------------------------------------------------------------------------
+  # Backup one-shots (card 36d3gdd6 — Phase 4.2: backup procedures).
+  # NOT started by default — enable with `--profile backup`. The backup image is
+  # an official Postgres client (pg_dump) whose MAJOR must be >= the server MAJOR.
+  # Shared Postgres here is 18, so the default is postgres:18-alpine; override via
+  # BACKUP_CLIENT_IMAGE if your shared instance differs. The app image (web) has
+  # no pg_dump and is never used for backups. Media lives in the media_data
+  # volume (mounted read-only here); Redis is optional via BACKUP_REDIS.
+  # ---------------------------------------------------------------------------
+  backup:
+    profiles:
+      - backup
+    image: ${BACKUP_CLIENT_IMAGE:-postgres:18-alpine}
+    entrypoint: ['sh', '/backup/backup.sh']
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ecommerce}
+      POSTGRES_USER: ${POSTGRES_USER:-ecommerce}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env - see .env.example}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres:5432}
+      BACKUP_KEEP_N: ${BACKUP_KEEP_N:-14}
+      BACKUP_REDIS: ${BACKUP_REDIS:-}
+    volumes:
+      - ./docker/backup:/backup:ro
+      - ./backups:/backups
+      - media_data:/media:ro
+    networks:
+      - shared-services-network
+
+  redis-backup:
+    profiles:
+      - backup
+    image: redis:8-alpine
+    command: ['sh', '-c', 'redis-cli -h redis --rdb /backups/redis-$(date -u +%Y%m%dT%H%M%SZ).rdb']
+    environment:
+      BACKUP_REDIS: ${BACKUP_REDIS:-}
+    volumes:
+      - ./backups:/backups
+    networks:
+      - shared-services-network
+
+  # ---------------------------------------------------------------------------
   # Monitoring stack (card 3c3b2e3a — Phase 4.1: Grafana dashboards).
   # OPTIONAL: not started by default. Enable with:
   #   docker compose --profile monitoring up -d

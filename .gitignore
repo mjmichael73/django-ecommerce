@@ -18,3 +18,5 @@ be/ecommerce/static/js/
 */__pycache__
 __pycache__/
 db.sqlite3
+# Backup artifacts — host bind target, written by `make backup`.
+backups/
