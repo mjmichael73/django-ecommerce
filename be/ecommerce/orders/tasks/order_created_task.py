@@ -6,9 +6,18 @@ from orders.models import Order
 @shared_task
 def order_created(order_id, _request_id=None):
     """
-    Task to send email notification when an order is successfully created.
-    :param order_id:
-    :return:
+    Send email notification when an order is successfully created.
+
+    ``_request_id`` is an optional correlation ID forwarded from the web
+    request that triggered checkout (card 6cc44f8g). It is not used directly
+    here — the Celery task-tracing hook in ``ecommerce/celery.py`` rebinds
+    the contextvar so log lines emitted by this task carry the originating
+    ``request_id`` without polluting the task body. The parameter is accepted
+    so ``propagate_request_id()`` can splat it onto ``delay(...)`` without
+    ``UnexpectedKeywordError``.
+
+    :param order_id: ID of the Order that was just created.
+    :return: Number of emails sent (0 or 1).
     """
     order = Order.objects.get(id=order_id)
     subject = f'Order nr. {order.id}'

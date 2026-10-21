@@ -566,3 +566,27 @@ class CeleryTaskTracingTests(SimpleTestCase):
             self.assertEqual(request_id_var.get(''), '')
         finally:
             request_id_var.reset(token)
+
+
+# ---------------------------------------------------------------------------
+# _env_level helper
+# ---------------------------------------------------------------------------
+
+class EnvLevelTests(SimpleTestCase):
+    """``_env_level`` must treat empty/unset env values as unset."""
+
+    def test_unset_returns_default(self):
+        from ecommerce.logging import _env_level
+        env = __import__('os').environ
+        env.pop('LOG_LEVEL', None)
+        self.assertEqual(_env_level('LOG_LEVEL', 'info'), 'INFO')
+
+    def test_empty_string_returns_default(self):
+        from ecommerce.logging import _env_level
+        with patch.dict('os.environ', {'LOG_LEVEL': ''}):
+            self.assertEqual(_env_level('LOG_LEVEL', 'info'), 'INFO')
+
+    def test_set_value_is_uppercased(self):
+        from ecommerce.logging import _env_level
+        with patch.dict('os.environ', {'LOG_LEVEL': 'debug'}):
+            self.assertEqual(_env_level('LOG_LEVEL', 'info'), 'DEBUG')

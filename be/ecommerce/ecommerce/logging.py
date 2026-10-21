@@ -200,7 +200,16 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 def _env_level(name: str, default: str) -> str:
-    return os.environ.get(name, default).upper()
+    """Read a log level from the environment, falling back to *default*.
+
+    An empty or unset value returns *default* (uppercased) — this mirrors
+    ``_env_bool``'s treatment of empty env values and matches the
+    ``LOG_LEVEL`` guard in ``settings.py``.
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw == '':
+        return default.upper()
+    return raw.upper()
 
 
 def build_logging_config(*, json_output: bool | None = None,
