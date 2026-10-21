@@ -28,19 +28,25 @@ from typing import List, Sequence, Tuple
 
 __all__ = ["parse_args", "select_retention", "extract_timestamp", "main"]
 
-# Matches a trailing ``-YYYYmmddHHMMSS`` or bare ``YYYYmmddHHMMSS`` timestamp
-# at the end of a filename stem (before the extension).
-_TS_RE = re.compile(r"(?:.*-|.*)(\d{14})(?:\..*)?$")
+# Matches a trailing timestamp in filenames like ``db-20240101T020000Z.dump``.
+# The date(8 digits) and time(6 digits) are separated by 'T' and the value ends
+# with a 3+ char suffix (e.g. 'Z'); capture the 14 sortable digits, folding the
+# 'T' separator so entries sort newest-first by embedded UTC timestamp.
+_TS_RE = re.compile(r"(?:.*-|.*)?(\d{8})T(\d{6})(?:\w+)?(?:\..*)?$")
 
 
 def extract_timestamp(entry: str) -> str:
     """Return the sortable timestamp string embedded in *entry*.
 
-    Falls back to the raw entry when no timestamp is found so ordering is
-    still deterministic (lexicographic descent of the whole name).
+    Handles the ``YYYYmmddTHHMMSSZ`` format produced by ``date -u +%Y%m%dT%H%M%SZ``
+    (date and time separated by 'T'), folding the separator so the result is a
+    14-digit string that sorts correctly newest-first. Falls back to the raw
+    entry name when no timestamp is found.
     """
     m = _TS_RE.match(entry)
-    return m.group(1) if m else entry
+    if m:
+        return m.group(1) + m.group(2)
+    return entry
 
 
 def select_retention(entries: Sequence[str], keep_n: int) -> Tuple[List[str], List[str]]:

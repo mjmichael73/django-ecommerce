@@ -301,9 +301,17 @@ make backup-restore ARGS=backups/db-<ts>.dump CONFIRM=scratch
 
 ### Automated Backups
 
-```bash
-# Add to crontab
-0 2 * * * docker compose exec postgres pg_dump -U postgres ecommerce | gzip > /backups/ecommerce-$(date +\%Y\%m\%d).sql.gz
+Postgres and Redis are **not** Compose services in this project — they are the
+shared instance in `~/projects/shared-services` (already has its own
+`daily/`+`weekly` backup-cron). The operational one-shot backup model is
+documented in [`docs/backup-restore.md`](backup-restore.md). For scheduling
+on the host, invoke the profile-gated one-shots:
+
+```cron
+# Daily DB + media backup at 02:00 (keep 14, see BACKUP_KEEP_N)
+0 2 * * * cd /path/to/django-ecommerce && docker compose --profile backup run --rm backup
+# Optional daily Redis RDB backup (keep 7, requires BACKUP_REDIS=1)
+0 3 * * * cd /path/to/django-ecommerce && BACKUP_REDIS=1 BACKUP_KEEP_N=7 docker compose --profile backup run --rm redis-backup
 ```
 
 ## Rollback

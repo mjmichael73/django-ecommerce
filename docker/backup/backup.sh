@@ -18,14 +18,18 @@ BACKUP_DIR="${BACKUP_DIR:-/backups}"
 KEEP_N="${BACKUP_KEEP_N:-14}"
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
-# Dry-run detection (robust under `set -u`).
 DRY_RUN=0
-if printf '%s\n%s\n' "${1:-}" "${*:-}" | grep -q -- '--dry-run'; then
-    DRY_RUN=1
-fi
+# Explicit arg check (avoids fragile grep-over-pipe on $* under `set -u`).
+for _arg in "$@"; do
+    case "$_arg" in
+        --dry-run) DRY_RUN=1 ;;
+    esac
+done
+# Legacy env alias.
 case "${DRY_RUN:-}" in
     1|true|yes) DRY_RUN=1 ;;
 esac
+unset _arg
 
 # libpq/pg_dump read PGPASSWORD; POSTGRES_PASSWORD is what Compose passes.
 export PGPASSWORD="${POSTGRES_PASSWORD:-}"
@@ -68,16 +72,21 @@ _rotate_kind() {
         echo "[backup][dry-run] rotate ${kind} (keep_n=$KEEP_N):"
     fi
     if _has_python3; then
-        # retain.py: dry-run plan to stderr, then unlink the delete set.
         if [ "$DRY_RUN" -eq 1 ]; then
+            # retain.py dry-run plan to stderr.
             python3 /backup/retain.py "$@" --keep-n "$KEEP_N" --dry-run --kind "$kind" || true
         else
-            python3 /backup/retain.py "$@" --keep-n "$KEEP_N" --dry-run --kind "$kind" 2>/dev/null \
-                | grep 'would delete:' | sed 's/.*would delete: //' \
-                | while IFS= read -r f; do
-                    [ -n "$f" ] || continue
+            # retain.py emits the KEEP list to stdout (one per line); delete
+            # everything that is NOT in that keep list (line-exact match).
+            keep_list="$(python3 /backup/retain.py "$@" --keep-n "$KEEP_N" --kind "$kind" 2>/dev/null || true)"
+            for f in "$@"; do
+                [ -e "$f" ] || continue
+                if printf '%s\n' "$keep_list" | grep -qxF -- "$f"; then
+                    :
+                else
                     rm -f -- "$f" && echo "[backup] rotated out: $f"
-                done
+                fi
+            done
         fi
     else
         # Shell fallback: extract 14-digit ts from each filename, sort desc,
@@ -92,8 +101,8 @@ _shell_fallback() {
     list=""
     for f in "$@"; do
         [ -e "$f" ] || continue
-        # Extract the 14-digit timestamp embedded in the filename.
-        ts="$(printf '%s' "${f##*/}" | grep -oE '[0-9]{14}' | head -1 || true)"
+        # Extract the 14-digit UTC ts (YYYYmmddTHHMMSSZ -> drop the 'T' and 'Z').
+        ts="$(printf '%s' "${f##*/}" | grep -oE '[0-9]{8}T[0-9]{6}' | tr -d 'T' || true)"
         [ -n "$ts" ] || ts="0"
         list="$list$ts $f
 "
@@ -105,8 +114,8 @@ _shell_fallback() {
         | tail -n +$((KEEP_N + 1)) \
         | while IFS= read -r line; do
             [ -z "$line" ] && continue
-            # Drop the leading "ts " prefix to recover the filename.
-            f="$(printf '%s' "$line" | sed 's/^[0-9] //')"
+            # Drop the leading "ts " prefix (14-digit ts + space) to recover filename.
+            f="$(printf '%s' "$line" | sed 's/^[0-9]* //')"
             if [ -n "$f" ]; then
                 if [ "$DRY_RUN" -eq 1 ]; then
                     echo "[backup][dry-run] would delete: $f"

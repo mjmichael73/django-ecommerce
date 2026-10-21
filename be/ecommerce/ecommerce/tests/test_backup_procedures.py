@@ -67,17 +67,17 @@ class RetainHelperTests(SimpleTestCase):
         self.assertEqual(delete, [])
 
     def test_select_retention_keeps_newest_n_deletes_rest(self):
-        # 20 entries, keep 5 -> keep 5 newest, delete 15 oldest.
-        entries = [f"db-2024{i:02d}0101T000000Z.dump" for i in range(1, 21)]
+        # 20 entries (2024-01-01 .. 2024-01-20, all at 00:00:00Z), keep 5.
+        entries = [f"db-202401{i:02d}T000000Z.dump" for i in range(1, 21)]
         keep, delete = self.retain.select_retention(entries, keep_n=5)
         self.assertEqual(len(keep), 5)
         self.assertEqual(len(delete), 15)
-        # Keep list is newest-first (i=20 down to 16).
-        self.assertEqual(keep[0], "db-2024200101T000000Z.dump")
-        self.assertEqual(keep[-1], "db-2024160101T000000Z.dump")
+        # Keep list is newest-first (day 20 down to 16).
+        self.assertEqual(keep[0], "db-20240120T000000Z.dump")
+        self.assertEqual(keep[-1], "db-20240116T000000Z.dump")
         # Delete list is the tail of the desc-sorted order: 6th-newest first.
-        self.assertEqual(delete[0], "db-2024150101T000000Z.dump")
-        self.assertEqual(delete[-1], "db-2024010101T000000Z.dump")
+        self.assertEqual(delete[0], "db-20240115T000000Z.dump")
+        self.assertEqual(delete[-1], "db-20240101T000000Z.dump")
 
     def test_select_retention_exact_lists(self):
         entries = [
@@ -112,6 +112,47 @@ class RetainHelperTests(SimpleTestCase):
     def test_parse_args_invalid_keep_n_raises(self):
         with self.assertRaises(SystemExit):
             self.retain.parse_args(["--keep-n", "not-a-number"])
+
+    def test_main_emits_keep_list_to_stdout_for_rotation(self):
+        """Regression for card 36d3gdd6 review (Critical #1).
+
+        backup.sh's real-run rotation shells out to retain.py and consumes the
+        KEEP list from stdout to decide what to delete (delete everything NOT
+        in the keep list). This test pins that contract: main() must print the
+        keep list to stdout (one per line) and NOT the delete plan (which goes
+        to stderr only under --dry-run).
+        """
+        import io
+        import contextlib
+        entries = [f"db-202401{i:02d}T000000Z.dump" for i in range(1, 11)]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = self.retain.main(["--keep-n", "3", *entries])
+        self.assertEqual(rc, 0)
+        lines = out.getvalue().splitlines()
+        # Keep list = 3 newest, newest-first (days 10, 9, 8).
+        self.assertEqual(len(lines), 3)
+        self.assertEqual(lines[0], "db-20240110T000000Z.dump")
+        self.assertEqual(lines[-1], "db-20240108T000000Z.dump")
+        # The 4th-newest (deleted) must NOT appear in the keep list.
+        self.assertNotIn("db-20240107T000000Z.dump", lines)
+
+    def test_main_dry_run_writes_plan_to_stderr(self):
+        """Under --dry-run the keep/delete plan goes to stderr (not stdout),
+        so a bare stdout capture yields the keep list only for deletion logic."""
+        import io
+        import contextlib
+        entries = [f"db-202401{i:02d}T000000Z.dump" for i in range(1, 6)]
+        out = io.StringIO()
+        err = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = self.retain.main(["--keep-n", "2", "--dry-run", "--kind", "db", *entries])
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.getvalue().splitlines(), [
+            "db-20240105T000000Z.dump",
+            "db-20240104T000000Z.dump",
+        ])
+        self.assertIn("would delete: db-20240103T000000Z.dump", err.getvalue())
 
 
 class BackupScriptTextTests(SimpleTestCase):
@@ -163,24 +204,65 @@ class RestoreScriptTextTests(SimpleTestCase):
         self.assertIn('ecommerce_restore_drill', self.restore_sh)
 
     def test_restore_sh_never_writes_to_live_db(self):
-        """Hard guard: no unconditional drop/restore against the live db name.
+        """Hard guard: destructive commands target ONLY the scratch db / postgres.
 
-        The only DROP DATABASE / restore commands must target the scratch
-        database ('ecommerce_restore_drill'), never POSTGRES_DB/'ecommerce'.
+        Every `DROP DATABASE` and every `pg_restore -d` / `psql -d` target must
+        reference only `ecommerce_restore_drill` (the scratch db) or `postgres`
+        (the maintenance db used for DDL). Any reference to the live db name
+        `ecommerce` or the `$LIVE_DB`/`$POSTGRES_DB` variables in a destructive
+        command position is rejected — this catches variable-indirection
+        loopholes the negative regexes alone would miss.
         """
-        dangerous_patterns = [
-            # No DROP DATABASE against the live db variable/name.
+        import re as _re
+        sh = self.restore_sh
+        # Strip full-line comments so comment text mentioning 'ecommerce' doesn't
+        # trip the live-db-name guard.
+        code = "\n".join(
+            line for line in sh.splitlines() if not line.lstrip().startswith("#")
+        )
+        # Every DROP DATABASE target must be the scratch db (variable or literal).
+        allowed_scratch = ('"${SCRATCH_DB}"', '${SCRATCH_DB}', 'ecommerce_restore_drill',
+                           '"${SCRATCH_DB}"')
+        for m in _re.finditer(r'(?mi)DROP\s+DATABASE\s+IF\s+EXISTS\s+(\S+)', code):
+            target = m.group(1).rstrip(';').strip().strip('"').strip("'")
+            self.assertIn(
+                target, allowed_scratch,
+                f'DROP DATABASE must only target the scratch db, got: {target!r}'
+            )
+        # Every pg_restore -d / psql -d target must be the scratch db or postgres.
+        for m in _re.finditer(r'(?m)(?<!\S)(?:pg_restore|psql)\s+.*?-\s*d\s+(\S+)', code):
+            target = m.group(1).rstrip(';').strip().strip('"').strip("'")
+            safe = (
+                'ecommerce_restore_drill' in target
+                or '${SCRATCH_DB}' in target
+                or '$SCRATCH_DB' in target
+                or target == 'postgres'
+            )
+            self.assertTrue(
+                safe,
+                f'pg_restore/psql -d targets must be scratch db or postgres, got: {target!r}'
+            )
+        # Negative: no destructive command may reference the live db variable.
+        for pat in (
             r'DROP\s+DATABASE.*LIVE_DB',
             r'DROP\s+DATABASE.*"\$POSTGRES_DB"',
-            r'DROP\s+DATABASE.*"ecommerce"',
-            # No pg_restore -d targeting the live db.
-            r'pg_restore.*-d\s+"\$?LIVE_DB',
-            r'pg_restore.*-d\s+"ecommerce"',
-        ]
-        for pat in dangerous_patterns:
-            self.assertNotRegex(
-                self.restore_sh, pat,
-                f'restore.sh must not target the live database via pattern: {pat}'
+        ):
+            self.assertNotRegex(code, pat, f'live db must not be targeted: {pat}')
+
+    def test_restore_sh_live_db_name_only_in_comments(self):
+        """The literal live db name 'ecommerce' may only appear in comments/echo,
+        never in a DROP DATABASE or pg_restore -d destructive position."""
+        import re as _re
+        sh = self.restore_sh
+        # Only inspect non-comment lines for destructive statements.
+        code = "\n".join(
+            line for line in sh.splitlines() if not line.lstrip().startswith("#")
+        )
+        for m in _re.finditer(r'(?mi)DROP\s+DATABASE\b[^;]*;', code):
+            stmt = m.group(0)
+            self.assertNotIn(
+                'ecommerce', stmt,
+                f'live db name must not appear in DROP DATABASE: {stmt!r}'
             )
 
     def test_restore_sh_confirms_scratch(self):

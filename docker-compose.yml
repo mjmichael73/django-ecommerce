@@ -261,7 +261,9 @@ services:
     profiles:
       - backup
     image: redis:8-alpine
-    command: ['sh', '-c', 'redis-cli -h redis --rdb /backups/redis-$(date -u +%Y%m%dT%H%M%SZ).rdb']
+    # Guard: in-container check skips the dump unless BACKUP_REDIS is set
+    # (the Makefile 'backup-redis' target is the other gate).
+    command: ['sh', '-c', '[ -n "$BACKUP_REDIS" ] || exit 0; redis-cli -h redis --rdb /backups/redis-$(date -u +%Y%m%dT%H%M%SZ).rdb']
     environment:
       BACKUP_REDIS: ${BACKUP_REDIS:-}
     volumes:
