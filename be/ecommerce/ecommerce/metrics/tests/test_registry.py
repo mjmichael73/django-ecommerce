@@ -47,20 +47,30 @@ class MetricsEnabledFlagTests(SimpleTestCase):
                 self.assertFalse(result, f'value {val!r} should disable')
 
 
-class NoOpMeterTests(SimpleTestCase):
-    """When metrics are disabled the meter must silently no-op."""
+class MeterDisabledTests(SimpleTestCase):
+    """When ``PROMETHEUS_ENABLED`` is off, the meter methods are no-ops.
 
-    def test_meter_is_noop_when_disabled(self):
-        """The no-op meter accepts all calls without error or side-effect."""
-        from ecommerce.metrics.registry import _NoOpMeter
+    Since there is no separate ``_NoOpMeter`` class — ``meter`` is always a
+    ``_PrometheusMeter`` that checks ``is_metrics_enabled()`` at call time —
+    we verify that calling each method under an enabled=False override is a
+    safe no-op (no exception, no counter mutation).
+    """
 
-        noop = _NoOpMeter()
-        # Every method must be callable and return None.
-        self.assertIsNone(noop.http_request('GET', 200, 0.1))
-        self.assertIsNone(noop.order_created('PAID', 42.0))
-        self.assertIsNone(noop.order_paid(42.0))
-        self.assertIsNone(noop.order_refunded(1, 5.0))
-        self.assertIsNone(noop.celery_task('tasks.foo', 'success', 0.3))
+    @override_settings(PROMETHEUS_ENABLED=False)
+    def test_methods_are_noop_when_disabled(self):
+        from ecommerce.metrics.registry import meter, orders_refunded_total
+        # Baseline value before any calls.
+        baseline = orders_refunded_total.labels(order_id='999')._value.get()
+        meter.http_request('GET', 200, 0.1)
+        meter.order_created('PAID', 42.0)
+        meter.order_paid(42.0)
+        meter.order_refunded(999, 5.0)
+        meter.celery_task('tasks.foo', 'success', 0.3)
+        # No counter should have moved.
+        self.assertEqual(
+            orders_refunded_total.labels(order_id='999')._value.get(),
+            baseline,
+        )
 
 
 class OrderStatusSyncTests(SimpleTestCase):

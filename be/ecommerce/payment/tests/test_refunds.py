@@ -421,3 +421,127 @@ class RefundWebhookTests(TestCase):
         self.assertEqual(_called_args[0], order.id)
         self.assertIn('_request_id', _called_kwargs)
         mock_create.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Refund metric integration (card g37aggbd)
+# ---------------------------------------------------------------------------
+
+@override_settings(
+    STRIPE_WEBHOOK_SECRET='whsec_test_secret',
+    PROMETHEUS_ENABLED=True,
+)
+@patch('payment.views.stripe_webhook_view.payment_completed.delay')
+class RefundMetricWebhookTests(TestCase):
+    """The ``charge.refunded`` webhook records ``orders_refunded_total``."""
+
+    def setUp(self):
+        self.client = Client()
+        self.url = '/payment/webhook/'
+
+    def _deliver(self, event):
+        with patch('stripe.Webhook.construct_event', return_value=event):
+            return self.client.post(
+                self.url,
+                b'{"type": "ignored"}',
+                content_type='application/json',
+                HTTP_STRIPE_SIGNATURE='v1,test',
+            )
+
+    def test_webhook_records_refund_delta(self, _task):
+        from ecommerce.metrics.registry import orders_refunded_total
+        order = _order(paid=True, stripe_id='pi_test_123')
+        # Baseline for this order_id label.
+        before = orders_refunded_total.labels(order_id=str(order.pk))._value.get()
+
+        self._deliver(
+            _charge_refunded_event(
+                payment_intent='pi_test_123', amount_refunded=2500,
+            )
+        )
+        order.refresh_from_db()
+        self.assertEqual(order.refunded_amount, Decimal('25.00'))
+
+        after = orders_refunded_total.labels(order_id=str(order.pk))._value.get()
+        self.assertAlmostEqual(after - before, 25.0, places=2)
+
+    def test_webhook_replay_does_not_double_count(self, _task):
+        """A replayed charge.refunded event (same amount) must not increment
+        the refund counter again — the delta is zero."""
+        from ecommerce.metrics.registry import orders_refunded_total
+        order = _order(paid=True, stripe_id='pi_test_123')
+
+        evt = _charge_refunded_event(
+            payment_intent='pi_test_123', amount_refunded=2500,
+        )
+        self._deliver(evt)
+        before = orders_refunded_total.labels(order_id=str(order.pk))._value.get()
+
+        # Replay the *same* event — cumulative amount is unchanged.
+        self._deliver(evt)
+        after = orders_refunded_total.labels(order_id=str(order.pk))._value.get()
+        self.assertEqual(after, before)
+
+
+@override_settings(PROMETHEUS_ENABLED=True)
+class RefundMetricRefundOrderTests(TestCase):
+    """``refund_order`` records ``orders_refunded_total`` on success only."""
+
+    def setUp(self):
+        from shop.models import Category, Product
+        self.category = Category.objects.create(name='Books', slug='books')
+        self.product = Product.objects.create(
+            category=self.category, name='Guide', slug='guide',
+            price=Decimal('100.00'),
+        )
+        self.order = Order.objects.create(
+            first_name='Test',
+            last_name='User',
+            email='t@example.com',
+            address='123 St',
+            postal_code='12345',
+            city='City',
+            paid=True,
+            stripe_id='pi_test_456',
+        )
+        OrderItem.objects.create(
+            order=self.order,
+            product=self.product,
+            price=Decimal('100.00'),
+            quantity=1,
+        )
+
+    @patch('stripe.Refund.create')
+    def test_full_refund_records_metric(self, mock_create):
+        from ecommerce.metrics.registry import orders_refunded_total
+        mock_create.return_value = SimpleNamespace(id='re_metric')
+        before = orders_refunded_total.labels(
+            order_id=str(self.order.pk),
+        )._value.get()
+
+        ok, reason = refund_order(self.order)
+        self.assertTrue(ok)
+
+        after = orders_refunded_total.labels(
+            order_id=str(self.order.pk),
+        )._value.get()
+        self.assertAlmostEqual(after - before, 100.0, places=2)
+
+    @patch('stripe.Refund.create')
+    def test_refund_failure_does_not_record_metric(self, mock_create):
+        """When ``refund_order`` returns False (guard hit), no metric is recorded."""
+        from ecommerce.metrics.registry import orders_refunded_total
+        # Order not paid → guard 1 fires, returns False before any Stripe call.
+        order = _order(paid=False, stripe_id='pi_test_789')
+        before = orders_refunded_total.labels(
+            order_id=str(order.pk),
+        )._value.get()
+
+        ok, reason = refund_order(order)
+        self.assertFalse(ok)
+        self.assertEqual(reason, 'not refundable')
+
+        after = orders_refunded_total.labels(
+            order_id=str(order.pk),
+        )._value.get()
+        self.assertEqual(after, before)

@@ -104,3 +104,23 @@ class PrometheusMiddlewareTests(SimpleTestCase):
         response = mw(request)
         self.assertEqual(response.status_code, 200)
         mock_meter.http_request.assert_not_called()
+
+    @patch('ecommerce.metrics.middleware.is_metrics_enabled', return_value=True)
+    @patch('ecommerce.metrics.middleware.meter')
+    def test_duration_uses_consistent_clock(self, mock_meter, _enabled_mock):
+        """Duration must use the same clock for start and subtraction.
+
+        If ``time.monotonic`` and ``time.perf_counter`` were mixed the duration
+        could be negative or wildly wrong. We assert the value is a sane
+        non-negative finite float.
+        """
+        import math
+        from ecommerce.metrics.middleware import PrometheusMetricsMiddleware
+        request = self.factory.get('/')
+        mw = PrometheusMetricsMiddleware(_dummy_view(200))
+        mw(request)
+        args = mock_meter.http_request.call_args
+        duration = args.args[2]
+        self.assertIsInstance(duration, float)
+        self.assertGreaterEqual(duration, 0.0)
+        self.assertTrue(math.isfinite(duration))

@@ -49,7 +49,7 @@ class PrometheusMetricsMiddleware:
         if path == METRICS_PATH or request.method not in _RECORDABLE_METHODS:
             return self.get_response(request)
 
-        start = time.monotonic()
+        start = time.perf_counter()
         try:
             response = self.get_response(request)
         except Exception:

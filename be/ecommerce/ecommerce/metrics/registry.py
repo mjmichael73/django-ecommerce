@@ -13,15 +13,14 @@ explosions:
 * HTTP status — the canonical Django/DRF status groups (2xx, 3xx, 4xx, 5xx).
 * Order status — the finite set from ``Order.Status`` choices.
 
-The ``metrics_enabled`` flag (read from ``PROMETHEUS_ENABLED`` env var) gates
-metric *creation*: when off, lightweight no-op meter objects are installed and
-the ``/metrics`` URL is not mounted. When on, real prometheus_client objects
-are created and the meter records into them. The env var is read once at
-import time, matching the rest of the settings module.
+The ``metrics_enabled`` flag (read from ``PROMETHEUS_ENABLED`` env var and
+Django settings) gates recording: every ``_PrometheusMeter`` method checks
+``is_metrics_enabled()`` at call time and returns early when off, so there is
+zero side-effect and no exposition is generated when the flag is falsy. The
+``/metrics`` view also guards at runtime (404 when disabled).
 
-For tests, ``override_settings(PROMETHEUS_ENABLED=True)`` toggles a module-level
-``_test_enabled`` override that the meter checks at call time, so tests can
-verify recording behaviour without re-importing the module.
+For tests, ``override_settings(PROMETHEUS_ENABLED=True)`` toggles the flag at
+runtime because ``is_metrics_enabled()`` reads from Django settings.
 """
 from __future__ import annotations
 
@@ -118,29 +117,6 @@ registry = CollectorRegistry(auto_describe=True)
 # Meter implementations
 # ---------------------------------------------------------------------------
 
-class _NoOpMeter:
-    """Discards every metric recording — zero overhead, zero allocations.
-
-    The interface matches :class:`_PrometheusMeter` so callers can hold a
-    single ``meter`` reference and call methods unconditionally.
-    """
-
-    def http_request(self, method: str, status_code: int, duration: float) -> None:
-        pass
-
-    def order_created(self, status: str, amount: float) -> None:
-        pass
-
-    def order_paid(self, amount: float) -> None:
-        pass
-
-    def order_refunded(self, order_id: int, amount: float) -> None:
-        pass
-
-    def celery_task(self, name: str, status: str, duration: float) -> None:
-        pass
-
-
 class _PrometheusMeter:
     """Typed recorders that wrap the real ``Counter``/``Histogram`` objects."""
 
@@ -218,9 +194,9 @@ class _PrometheusMeter:
 # ---------------------------------------------------------------------------
 
 # The metric objects are always created so the module can be imported safely
-# in any process. When ``metrics_enabled`` is False the meter methods are
-# still no-ops via ``_is_enabled()`` — they return early before touching the
-# Counter/Histogram, so there is no side-effect and no exposition is generated.
+# in any process. The ``_PrometheusMeter`` methods check ``is_metrics_enabled()``
+# at call time and return early when the flag is off, so there is no side-effect
+# and no exposition is generated when metrics are disabled.
 http_requests_total = Counter(
     'django_http_requests_total',
     'Total number of HTTP requests.',

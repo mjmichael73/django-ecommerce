@@ -66,8 +66,9 @@ jobs:
         run: pip install -r ../requirements.txt
       - name: Django tests
         run: >-
-          python manage.py test ecommerce.tests orders.tests payment.tests
-          coupons.tests accounts.tests shop.tests returns.tests wishlist.tests -v2
+          python manage.py test ecommerce.tests ecommerce.metrics.tests orders.tests
+          payment.tests coupons.tests accounts.tests shop.tests returns.tests
+          wishlist.tests -v2
 
   # Container pipeline: the production image is BUILT on every PR and push (fast
   # feedback, catches broken Dockerfiles immediately) and PUBLISHED to GHCR only on

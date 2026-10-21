@@ -24,24 +24,23 @@ from django.test import Client, TestCase, override_settings
 
 @override_settings(PROMETHEUS_ENABLED=True)
 class MeterCallTests(TestCase):
-    """Directly call meter methods and verify the underlying prometheus
+    """Directly call meter/business methods and verify the underlying prometheus
     counters are incremented."""
 
     def test_http_request_records_count(self):
+        """Calling meter.http_request() directly increments the counter."""
         from ecommerce.metrics.registry import (
             is_metrics_enabled,
             http_requests_total,
             HTTP_METHODS,
             HTTP_STATUS_GROUPS,
         )
-        # The meter should record this request.
-        from ecommerce.metrics.business import record_order_created  # noqa
         from ecommerce.metrics.registry import meter
-        if is_metrics_enabled():
-            meter.http_request('GET', 200, 0.05)
-            # The counter for GET/2xx should have gone up.
-            sample = http_requests_total.labels(method='GET', status='2xx')
-            self.assertGreaterEqual(sample._value.get(), 0.0)
+        # The meter should record this request.
+        meter.http_request('GET', 200, 0.05)
+        # The counter for GET/2xx should have gone up.
+        sample = http_requests_total.labels(method='GET', status='2xx')
+        self.assertGreaterEqual(sample._value.get(), 0.05)
 
     def test_order_created_records_revenue(self):
         from ecommerce.metrics.registry import orders_revenue_total

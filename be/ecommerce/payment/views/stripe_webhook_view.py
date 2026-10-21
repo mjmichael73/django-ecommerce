@@ -12,6 +12,7 @@ from orders.tasks import payment_completed
 from shop import inventory
 from ecommerce.middleware.request_id import propagate_request_id
 from ecommerce.metrics.business import record_order_paid
+from ecommerce.metrics.business import record_order_refunded
 
 logger = logging.getLogger(__name__)
 
@@ -156,8 +157,26 @@ def _apply_refunded_event(charge) -> None:
     if order is None:
         # Refund for a payment we do not know about — nothing to update.
         return
+
+    # Compute the delta for the business metric (card g37aggbd). Stripe's
+    # amount_refunded is cumulative; the per-event delta is the difference
+    # from the last stored value. Idempotency: if the stored value already
+    # equals the incoming value (a replay of the same event), the delta is
+    # zero and we skip the metric recording to avoid double-counting.
+    previous = order.refunded_amount or Decimal('0')
+    refunded_delta = refunded_amount - previous
+
     Order.objects.filter(pk=order.pk).update(
         refunded_amount=refunded_amount,
         refund_id=_single_refund_id(charge),
         refunded_at=timezone.now(),
     )
+
+    # Business metric — record the per-event refund delta (card g37aggbd).
+    if refunded_delta > 0:
+        try:
+            record_order_refunded(order.pk, float(refunded_delta))
+        except Exception:
+            logger.exception(
+                'failed to record refund metric for order %s', order.pk,
+            )
