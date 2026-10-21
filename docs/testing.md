@@ -302,7 +302,8 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/
 # Design: no brittle timing assertions — every test guards a *structural*
 # invariant (query-count ceiling via CaptureQueriesContext, result sizes,
 # relative scaling, repeated-checkout stability). Rate limits are overridden
-# to (1000, 3600) per test class so burst checkout POSTs don't hit 429.
+# to (0, 0) per test class to disable the limiter entirely so burst
+# checkout POSTs don't hit 429.
 # The Celery order_created.delay task is mocked out. Stripe is never
 # exercised here (that lives in payment:process). Runs on the LocMem cache
 # (see test_runner.py) — never touches shared Redis DB 2.
