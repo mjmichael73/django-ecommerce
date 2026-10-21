@@ -152,6 +152,8 @@ kubectl kustomize build k8s/overlays/prod \
 
 ## Blue-green roadmap
 
-These manifests use single-colored selectors (`app: ecommerce-web`) on
-intention. Task 9 will introduce a blue/green color-flip on top of these exact
-labels without rewriting them — see the roadmap tick below.
+These manifests use single-colored selectors (`app: ecommerce-web`) with an
+added `color` dimension on intention. Task 9 introduces a blue/green color-flip
+on top of these exact labels without rewriting them — see the roadmap tick in
+[docs/roadmap.md](roadmap.md) and the full procedure in
+[docs/blue-green.md](blue-green.md).

@@ -1,6 +1,14 @@
 # Web Deployment: Django app served by gunicorn behind the entrypoint.sh wrapper
 # (DB wait + migrate --noinput + collectstatic unless SKIP_COLLECTSTATIC=1).
 #
+# Blue-green note (card 828ff8ea): the shipped base world is BLUE. The
+# `color: blue` label on the pod template + the `color: blue` selector entry
+# on service-web.yaml route traffic to the blue deployment by default. The
+# green twin lives in k8s/blue-green/ and is applied out-of-band by
+# scripts/blue_green_deploy.sh; base stays single-colored so a plain
+# `kubectl apply -k k8s/overlays/<env>` only ever stands up one color. See
+# docs/blue-green.md for the cutover/rollback procedure.
+#
 # Liveness/readiness split rationale (card a9cea652):
 #   * readiness = httpGet /health/ (port 8000) — this view runs `SELECT 1`,
 #     so it genuinely reflects DB reachability. The load balancer / ingress
@@ -23,6 +31,7 @@ metadata:
   name: ecommerce-web
   labels:
     app: ecommerce-web
+    color: blue
   # Migrate-concurrency contract is inherited from entrypoint.sh + the
   # transactional migration model — see docs/migrations.md ("Container
   # start-up ordering ... serializes conflicting ALTER TABLE").
@@ -31,10 +40,12 @@ spec:
   selector:
     matchLabels:
       app: ecommerce-web
+      color: blue
   template:
     metadata:
       labels:
         app: ecommerce-web
+        color: blue
     spec:
       # Web image only ships be/ecommerce (Dockerfile COPY). DJANGO_SETTINGS_MODULE
       # is baked into the image; all other config flows from envFrom below.

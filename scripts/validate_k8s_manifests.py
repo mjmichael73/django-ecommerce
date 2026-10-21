@@ -42,6 +42,8 @@ def _repo_root() -> Path:
 
 REPO_ROOT = _repo_root()
 K8S_DIR = REPO_ROOT / "k8s"
+SCRIPTS_DIR = REPO_ROOT / "scripts"
+DOCS_DIR = REPO_ROOT / "docs"
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +294,204 @@ def _failures() -> list[str]:
                     f"{name} container[{i}] missing resources.limits",
                 )
 
+    # ------------------------------------------------------------------
+    # 9. Blue-green deployment (card 828ff8ea)
+    # ------------------------------------------------------------------
+    # 9a. base web Service selector includes `color` and resolves to exactly
+    #     one color value (the shipped default is blue).
+    if web_service and web_deploy:
+        svc_selector = web_service.get("spec", {}).get("selector", {})
+        svc_color = svc_selector.get("color")
+        check(
+            svc_color is not None,
+            "service-web selector must include a `color` key for blue-green (card 828ff8ea)",
+        )
+        check(
+            svc_color == "blue",
+            f"service-web selector `color` must be the shipped default 'blue' (got {svc_color!r})",
+        )
+
+        # base web pod template labels must include color: blue
+        pod_labels = (
+            web_deploy.get("spec", {})
+            .get("template", {})
+            .get("metadata", {})
+            .get("labels", {})
+        )
+        check(
+            pod_labels.get("color") == "blue",
+            f"base web pod template must label color: blue (got {pod_labels.get('color')!r})",
+        )
+        # deployment matchLabels must also carry the color so the green twin
+        # (same app label) doesn't collide with the blue selector.
+        match_labels = (
+            web_deploy.get("spec", {}).get("selector", {}).get("matchLabels", {})
+        )
+        check(
+            match_labels.get("color") == "blue",
+            f"base web deployment selector.matchLabels must include color: blue (got {match_labels.get('color')!r})",
+        )
+
+    # 9b. green twin manifest structure
+    green_docs = by_kind(parse_file("blue-green/deployment-web-green.yaml"))
+    green_deploy = green_docs.get("Deployment")
+    check(
+        green_deploy is not None,
+        "k8s/blue-green/deployment-web-green.yaml: missing Deployment",
+    )
+    if green_deploy:
+        check(
+            green_deploy.get("metadata", {}).get("name") == "ecommerce-web-green",
+            f"green Deployment name must be 'ecommerce-web-green' (got {green_deploy.get('metadata', {}).get('name')!r})",
+        )
+        g_pod_labels = (
+            green_deploy.get("spec", {})
+            .get("template", {})
+            .get("metadata", {})
+            .get("labels", {})
+        )
+        check(
+            g_pod_labels.get("color") == "green",
+            f"green pod template labels must include color: green (got {g_pod_labels.get('color')!r})",
+        )
+        check(
+            g_pod_labels.get("app") == "ecommerce-web",
+            f"green pod template labels must keep app: ecommerce-web (got {g_pod_labels.get('app')!r})",
+        )
+        # both probes present on the green twin
+        g_c0 = (
+            green_deploy.get("spec", {})
+            .get("template", {})
+            .get("spec", {})
+            .get("containers", [{}])[0]
+        )
+        g_ready = g_c0.get("readinessProbe", {})
+        g_live = g_c0.get("livenessProbe", {})
+        check(
+            g_ready.get("httpGet", {}).get("path") == "/health/"
+            and g_ready.get("httpGet", {}).get("port") == 8000,
+            f"green Deployment readinessProbe must be httpGet /health/ on 8000 (got {g_ready.get('httpGet')})",
+        )
+        check(
+            g_live.get("tcpSocket", {}).get("port") == 8000,
+            f"green Deployment livenessProbe must be tcpSocket 8000 (got {g_live})",
+        )
+        # envFrom both config + secret
+        g_refs = envfrom_names(green_deploy)
+        check("ecommerce-config" in g_refs, f"green Deployment must envFrom ConfigMap (got {g_refs})")
+        check("ecommerce-secrets" in g_refs, f"green Deployment must envFrom Secret (got {g_refs})")
+        # port 8000 declared
+        g_ports = [p.get("containerPort") for p in g_c0.get("ports", [])]
+        check(8000 in g_ports, f"green Deployment must expose containerPort 8000 (got {g_ports})")
+
+    # 9c. green Deployment is NOT in base kustomization (base stays single-colored)
+    if base_kustomize:
+        bk = base_kustomize[0]
+        base_res = bk.get("resources", [])
+        green_in_base = any("deployment-web-green" in str(r) for r in base_res)
+        check(
+            not green_in_base,
+            "green twin must NOT live in base kustomization resources (base stays single-colored) — applied by path via scripts/blue_green_deploy.sh",
+        )
+
+    # 9d. helper script: ordered gate + single-color flip + flip only touches the
+    #     Service selector.
+    script_path = SCRIPTS_DIR / "blue_green_deploy.sh"
+    if script_path.is_file():
+        script_text = script_path.read_text(encoding="utf-8")
+        # rollout status BEFORE the selector flip (cutover ordering) — checked
+        # within cmd_cutover's body so doc comments / other functions don't
+        # produce false positives.
+        cutover_idx = script_text.find("cmd_cutover()")
+        if cutover_idx != -1:
+            cutover_body = script_text[cutover_idx:]
+        else:
+            cutover_body = script_text
+        rollout_idx = cutover_body.find("kubectl rollout status")
+        flip_idx = cutover_body.find("flip_selector green")
+        check(
+            rollout_idx != -1 and flip_idx != -1 and rollout_idx < flip_idx,
+            "blue_green_deploy.sh: cutover MUST run `kubectl rollout status` BEFORE "
+            "`flip_selector green` (wait for green pods to boot-migrate + pass "
+            "/health/ before the traffic switch)",
+        )
+        # the patch target must be the svc, and only the color selector is set
+        patch_lines = [
+            ln for ln in script_text.splitlines()
+            if 'patch "svc/' in ln or 'svc/$SERVICE_NAME' in ln
+        ]
+        check(
+            bool(patch_lines),
+            "blue_green_deploy.sh: must patch svc/ecommerce-web (the web Service)",
+        )
+        # only blue/green are allowed flip targets (matched as whole words, quoted
+        # or bare — the script calls `flip_selector blue|green`)
+        for allowed in ("blue", "green"):
+            check(
+                allowed in script_text,
+                f"blue_green_deploy.sh: must be able to flip the selector to {allowed}",
+            )
+        # The flip MUST ONLY patch the Service selector.color — no other resource
+        # and no other selector key. We assert:
+        #  (a) the kubectl patch call targets svc/$SERVICE_NAME (a Service),
+        #  (b) the JSON patch body sets ONLY spec.selector.color (the build line
+        #      is python3 jq that embeds "color" but no other selector key),
+        #  (c) no kubectl patch line targets a Deployment.
+        patch_lines = [
+            ln for ln in script_text.splitlines()
+            if "kubectl patch" in ln
+        ]
+        # exclude pure comment lines from the negative checks
+        patch_cmd_lines = [ln for ln in patch_lines if not ln.lstrip().startswith("#")]
+        check(
+            bool(patch_cmd_lines),
+            "blue_green_deploy.sh: must contain a `kubectl patch` invocation for the selector flip",
+        )
+        # (a) targets the Service
+        check(
+            any("svc/$SERVICE_NAME" in ln or "svc/ecommerce-web" in ln for ln in patch_cmd_lines),
+            "blue_green_deploy.sh: the selector patch must target svc/ecommerce-web (the Service)",
+        )
+        # (c) never targets a Deployment
+        check(
+            not any("deploy/" in ln for ln in patch_cmd_lines),
+            "blue_green_deploy.sh: the selector patch must not target a Deployment",
+        )
+        # (b) the patch body sets ONLY color — verify the python3/jq builder lines
+        #     embed "color" and do not embed any other selector key (app, etc.).
+        body_lines = [
+            ln for ln in script_text.splitlines()
+            if "patch_json=" in ln and ("python3" in ln or "jq" in ln)
+        ]
+        check(
+            bool(body_lines),
+            "blue_green_deploy.sh: patch JSON must be built from color only",
+        )
+        if body_lines:
+            body = "\n".join(body_lines)
+            check(
+                '"color"' in body or "'color'" in body or "color" in body,
+                "blue_green_deploy.sh: patch body must flip spec.selector.color",
+            )
+            # the builder must not set app or any other selector key
+            for other_key in ("app", "version", "tier", "env"):
+                check(
+                    f'"{other_key}"' not in body and f"'{other_key}'" not in body,
+                    f"blue_green_deploy.sh: patch body must set ONLY color (found {other_key})",
+                )
+    else:
+        check(False, "scripts/blue_green_deploy.sh must exist (card 828ff8ea)")
+
+    # 9e. runbook documentation
+    runbook_path = DOCS_DIR / "blue-green.md"
+    check(runbook_path.is_file(), "docs/blue-green.md must exist (card 828ff8ea)")
+    if runbook_path.is_file():
+        rb = runbook_path.read_text(encoding="utf-8").lower()
+        check(
+            "flip" in rb or "selector" in rb,
+            "docs/blue-green.md must document the Service selector flip",
+        )
+
     return fails
 
 
@@ -302,7 +502,7 @@ def main() -> int:
         for f in fails:
             print(f"  - {f}")
         return 1
-    print("OK: k8s manifests validated (base + dev/prod, web/worker/beat, envFrom, probes, commands).")
+    print("OK: k8s manifests validated (base + dev/prod + green, web/worker/beat, envFrom, probes, commands, blue-green gate).")
     return 0
 
 

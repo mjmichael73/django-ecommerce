@@ -76,7 +76,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 
 ### 4.2 Deployment
 - [x] Add Kubernetes manifests (card a9cea652; k8s/ Kustomize base + dev/prod overlays, no-cluster yaml validator + CI step, Django test module, docs/kubernetes.md)
-- [ ] Implement blue-green deployment
+- [x] Implement blue-green deployment (card 828ff8ea; color-flip on the web Service only — k8s/blue-green/ green twin + scripts/blue_green_deploy.sh cutover/rollback, rollout-before-selector-patch gate, docs/blue-green.md; see also docs/migrations.md expand-first contract and docs/production.md migration step)
 - [x] Add database migrations strategy (card 65b22ag7; docs/migrations.md + CI guard)
 - [x] Create backup procedures (card 36d3gdd6; docker/backup + docs/backup-restore.md)
 

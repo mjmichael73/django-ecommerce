@@ -1,0 +1,89 @@
+# Green twin of the web Deployment (card 828ff8ea).
+#
+# This file is intentionally OUTSIDE k8s/base/ so a plain
+# `kubectl apply -k k8s/overlays/<env>` only ever brings up the single BLUE
+# world (base stays single-colored). The green twin is applied out-of-band by
+# scripts/blue_green_deploy.sh:
+#
+#   kubectl apply -f k8s/blue-green/deployment-web-green.yaml
+#
+# and only then does the script patch service-web's selector to `color: green`
+# AFTER the green rollout completes (`kubectl rollout status`). On rollback the
+# service selector is flipped back to `color: blue`, returning traffic to the
+# retained blue pods (see docs/blue-green.md for the scaling policy).
+#
+# The green twin is byte-identical to deployment-web.yaml apart from:
+#   * metadata.name        -> ecommerce-web-green
+#   * selector.matchLabels -> app: ecommerce-web, color: green
+#   * template labels      -> app: ecommerce-web, color: green
+# All probes, envFrom (config + secret), port 8000, resources, volumes and the
+# entrypoint/migrate contract are mirrors of the base deployment.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecommerce-web-green
+  labels:
+    app: ecommerce-web
+    color: green
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ecommerce-web
+      color: green
+  template:
+    metadata:
+      labels:
+        app: ecommerce-web
+        color: green
+    spec:
+      # Web image only ships be/ecommerce (Dockerfile COPY). DJANGO_SETTINGS_MODULE
+      # is baked into the image; all other config flows from envFrom below.
+      containers:
+        - name: web
+          image: ghcr.io/mjmichael73/django-ecommerce:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: ecommerce-config
+            - secretRef:
+                name: ecommerce-secrets
+          # Entrypoint runs migrate + collectstatic (see Dockerfile); gunicorn is the CMD.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 6
+            successThreshold: 1
+          # Media uploads (user content) are NOT in the image — pods that render
+          # user media need a shared store. Mount an object-storage side-car or a
+          # shared PVC (see docs/kubernetes.md). Read-only root.
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+              readOnly: true
+          securityContext:
+            readOnlyRootFilesystem: false   # image layers are read-only; /app/media is the writable mount
+      volumes:
+        - name: media
+          emptyDir: {}                      # placeholder — replace with PVC/object-storage in real clusters
