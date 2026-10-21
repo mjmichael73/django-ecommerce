@@ -294,6 +294,21 @@ docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= \
 docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test shop.tests.test_full_text_search -v2
 ```
 
+### Performance tests (card e4e4dh4g)
+
+```python
+# ecommerce/tests/test_performance.py — SQL query-budget and relative
+# wall-clock regression tests for the storefront's hottest paths.
+# Design: no brittle timing assertions — every test guards a *structural*
+# invariant (query-count ceiling via CaptureQueriesContext, result sizes,
+# relative scaling, repeated-checkout stability). Rate limits are overridden
+# to (1000, 3600) per test class so burst checkout POSTs don't hit 429.
+# The Celery order_created.delay task is mocked out. Stripe is never
+# exercised here (that lives in payment:process). Runs on the LocMem cache
+# (see test_runner.py) — never touches shared Redis DB 2.
+docker compose run --rm -e SKIP_COLLECTSTATIC=1 -e REDIS_CACHE_URL= -v "$PWD/be/ecommerce:/app" web python manage.py test ecommerce.tests.test_performance -v2
+```
+
 ## Integration Tests
 
 ### Full Flow Tests
@@ -441,4 +456,5 @@ pytest catalog/tests/test_models.py::TestProduct::test_product_creation
 - [x] Product reviews test module `shop.tests.test_product_reviews` (card bd8f759h)
 - [x] Full-text search test module `shop.tests.test_full_text_search` (card bf247ef9)
 - [x] Faceted navigation test module `shop.tests.test_facets` (card 3g83heaa)
+- [x] Performance test module `ecommerce.tests.test_performance` (card e4e4dh4g) — query-budget and relative-slowdown regression tests for catalog listing, product detail, cart detail, and checkout POST endpoints
 - [ ] Test data fixtures created

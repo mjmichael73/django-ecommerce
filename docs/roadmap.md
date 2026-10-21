@@ -81,9 +81,9 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [ ] Create backup procedures
 
 ### 4.3 Testing
-- [ ] Add unit tests for all apps
-- [ ] Create integration tests
-- [ ] Add performance tests
+- [x] Add unit tests for all apps
+- [x] Create integration tests
+- [x] Add performance tests (card e4e4dh4g; `ecommerce/tests/test_performance.py`)
 - [x] Implement CI/CD pipeline
 
 ## Success Criteria
