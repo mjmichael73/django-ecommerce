@@ -1,0 +1,172 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Admin dashboard{{ block.super }}{% endblock %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url "admin:index" %}">Home</a> &rsaquo; Dashboard
+  </div>
+{% endblock %}
+
+{% block content %}
+  <div id="content">
+    <h1>Store dashboard</h1>
+    <p class="quiet">Staff-only overview of orders, revenue, stock, returns and fraud signals.</p>
+
+    <!-- Orders + revenue -->
+    <div class="module">
+      <h2>Orders &amp; revenue</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Window</th>
+            <th class="num">Paid orders</th>
+            <th class="num">Revenue</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Today</td>
+            <td class="num">{{ orders_today_count }}</td>
+            <td class="num">${{ revenue_today|floatformat:2 }}</td>
+          </tr>
+          <tr>
+            <td>Last 7 days</td>
+            <td class="num">{{ orders_week_count }}</td>
+            <td class="num">${{ revenue_week|floatformat:2 }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="quiet">Revenue is the discounted total of paid orders. Refunded amounts are not subtracted (gross paid).</p>
+    </div>
+
+    <!-- Order status tally -->
+    <div class="module">
+      <h2>Order status (last 7 days)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th class="num">Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in status_tally %}
+            <tr>
+              <td>{{ item.label }}</td>
+              <td class="num">{{ item.count }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="2">No orders in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Low stock -->
+    <div class="module">
+      <h2>Low stock (threshold: {{ low_stock_threshold }})</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th class="num">Stock</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for product in low_stock %}
+            <tr>
+              <td>{{ product.name }}</td>
+              <td class="num">{{ product.stock }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="2">No low-stock products.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="quiet">Only tracked stock (stock &gt; NULL) at or below {{ low_stock_threshold }} is listed; NULL stock means untracked and is always sellable.</p>
+    </div>
+
+    <!-- Pending returns -->
+    <div class="module">
+      <h2>Pending return requests</h2>
+      <p class="quiet">{{ pending_returns_count }} pending.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Return #</th>
+            <th>Order</th>
+            <th class="num">Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rr in pending_returns %}
+            <tr>
+              <td>{{ rr.id }}</td>
+              <td>
+                <a href="{% url "orders:admin_order_detail" rr.order.id %}">Order {{ rr.order.id }}</a>
+              </td>
+              <td class="num">{{ rr.created }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3">No pending return requests.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Flagged fraud -->
+    <div class="module">
+      <h2>Flagged fraud orders</h2>
+      <p class="quiet">{{ flagged_count }} flagged.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Order</th>
+            <th class="num">Score</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in flagged_orders %}
+            <tr>
+              <td>
+                <a href="{% url "orders:admin_order_detail" order.id %}">Order {{ order.id }}</a>
+              </td>
+              <td class="num">{{ order.fraud_score }}</td>
+              <td>{{ order.fraud_notes|truncatechars:60 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3">No flagged orders.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Recent signups -->
+    <div class="module">
+      <h2>Recent signups</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Date joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in recent_signups %}
+            <tr>
+              <td>{{ user.username }}</td>
+              <td>{{ user.email }}</td>
+              <td>{{ user.date_joined }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3">No users.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

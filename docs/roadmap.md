@@ -44,7 +44,7 @@ Production-quality demo shop with good patterns, comprehensive documentation, an
 - [x] Add order tracking (card ee76485f; `accounts/tests/test_order_tracking.py`, `ecommerce/tests/test_rate_limit.py`)
 - [ ] Implement order history
 - [x] Add return/refund flow (card 4fcgcg9e; `returns/` app with `ReturnRequest` model, customer-facing form views, rate limiting, admin approve/reject/refund/cancel actions routing through the existing `refund_order` primitive)
-- [ ] Create admin dashboard
+- [x] Create admin dashboard (card d3gh87d2; `orders/tests/test_admin_dashboard.py`)
 
 ## Phase 3: Performance
 
