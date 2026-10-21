@@ -20,3 +20,9 @@ __pycache__/
 db.sqlite3
 # Backup artifacts — host bind target, written by `make backup`.
 backups/
+# Agent-scratch workspaces and tool markers — never source.
+.superpowers/
+.freebuff/
+
+# Agent-scratch workspaces and tool markers - never source.
+.superpowers/
