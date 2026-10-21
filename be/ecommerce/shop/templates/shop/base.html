@@ -19,6 +19,12 @@
             {% if user.is_authenticated %}
             <a href="{% url 'accounts:profile' %}" class="site-nav__link">Profile</a>
             <a href="{% url 'accounts:order_list' %}" class="site-nav__link">Orders</a>
+            <a href="{% url 'wishlist:detail' %}" class="site-nav__link site-nav__wishlist">
+                <span class="site-nav__wishlist-label">Wish list</span>
+                {% if wishlist_item_count > 0 %}
+                    <span class="cart-badge">{{ wishlist_item_count }}</span>
+                {% endif %}
+            </a>
             {% endif %}
             <a href="{% url 'cart:cart_detail' %}" class="site-nav__link site-nav__cart">
                 <span class="site-nav__cart-label">Cart</span>

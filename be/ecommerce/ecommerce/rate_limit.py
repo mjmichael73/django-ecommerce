@@ -48,6 +48,7 @@ CODE_DEFAULTS = {
     'review': (10, 3600),
     'tracking': (20, 3600),
     'return': (5, 3600),
+    'wishlist': (60, 3600),
 }
 
 TOO_MANY_REQUESTS_BODY = 'Too many requests. Please try again later.'

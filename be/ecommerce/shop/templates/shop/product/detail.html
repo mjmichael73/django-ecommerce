@@ -35,6 +35,33 @@
                 <input type="submit" value="Add to cart">
             </div>
         </form>
+        {% if user.is_authenticated %}
+        <div class="wishlist-cell">
+            {% if wish_item %}
+            <form action="{% url 'wishlist:remove' product.id %}" method="post" class="wishlist-cell__form">
+                {% csrf_token %}
+                <input type="hidden" name="variant_id" value="">
+                <button type="submit" class="wishlist-cell__btn wishlist-cell__btn--saved" aria-pressed="true">
+                    ★ Saved (×{{ wish_item.quantity }})
+                </button>
+            </form>
+            {% else %}
+            <form action="{% url 'wishlist:add' product.id %}" method="post" class="wishlist-cell__form">
+                {% csrf_token %}
+                <input type="hidden" name="variant_id" value="">
+                <button type="submit" class="wishlist-cell__btn">
+                    ♡ Save for later
+                </button>
+            </form>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="wishlist-cell">
+            <a href="{% url 'accounts:login' %}?next={{ request.get_full_path|urlencode }}" class="wishlist-cell__link">
+                ♡ Save for later
+            </a>
+        </p>
+        {% endif %}
         <div class="product-detail__desc">
             {{ product.description|linebreaks }}
         </div>

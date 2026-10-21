@@ -83,7 +83,7 @@ make test
 
 # Local (venv with deps)
 cd be/ecommerce
-SECRET_KEY=... python manage.py test ecommerce.tests orders.tests payment.tests coupons.tests accounts.tests shop.tests -v2
+SECRET_KEY=... python manage.py test ecommerce.tests orders.tests payment.tests coupons.tests accounts.tests shop.tests returns.tests wishlist.tests -v2
 ```
 
 PostgreSQL is the **shared instance** from `~/projects/shared-services` (external network `shared-services-network`, database `ecommerce`); start it with `cd ~/projects/shared-services && docker compose up -d postgres`.
